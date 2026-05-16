@@ -62,22 +62,25 @@
     <div id="hud-sys">SYS ONLINE</div>
   </div>
 
-  <!-- RIGHT HUD — BUTTONS -->
-  <div id="hud-right">
+  <!-- RIGHT HUD TOP — CAM · SCR · DEV · LOG -->
+  <div id="hud-right-top">
     <button id="cam-btn">◈ CAM</button>
-    <div class="hud-divider"></div>
+    <div class="hud-divider-h"></div>
     <button id="screen-btn">⊞ SCR</button>
-    <div class="hud-divider"></div>
+    <div class="hud-divider-h"></div>
     <button id="device-btn">⊕ DEV</button>
-    <div class="hud-divider"></div>
+    <div class="hud-divider-h"></div>
     <button id="hist-btn">▤ LOG</button>
-    <div class="hud-divider"></div>
+  </div>
+
+  <!-- RIGHT HUD BOTTOM — REM · MEM · FILE · SET -->
+  <div id="hud-right-bottom">
     <button id="rem-btn">⏱ REM</button>
-    <div class="hud-divider"></div>
+    <div class="hud-divider-h"></div>
     <button id="mem-btn">◈ MEM</button>
-    <div class="hud-divider"></div>
+    <div class="hud-divider-h"></div>
     <button id="file-btn">◈ FILE</button>
-    <div class="hud-divider"></div>
+    <div class="hud-divider-h"></div>
     <button id="set-btn">⚙ SET</button>
   </div>
 
@@ -143,7 +146,8 @@
       const observer = new MutationObserver(() => {
         if (document.getElementById('interface').classList.contains('visible')) {
           document.getElementById('hud-left').classList.add('show');
-          document.getElementById('hud-right').classList.add('show');
+          document.getElementById('hud-right-top').classList.add('show');
+          document.getElementById('hud-right-bottom').classList.add('show');
           observer.disconnect();
         }
       });
@@ -152,37 +156,14 @@
 
     // ── Wire ALL HUD buttons after everything loads ──
     window.addEventListener('load', () => {
-      // Camera
-      const camBtn = document.getElementById('cam-btn');
-      if (camBtn) camBtn.addEventListener('click', () => toggleCamera());
-
-      // Screen share
-      const screenBtn = document.getElementById('screen-btn');
-      if (screenBtn) screenBtn.addEventListener('click', () => toggleScreenShare());
-
-      // Device panel
-      const deviceBtn = document.getElementById('device-btn');
-      if (deviceBtn) deviceBtn.addEventListener('click', () => toggleDevicePanel());
-
-      // History log
-      const histBtn = document.getElementById('hist-btn');
-      if (histBtn) histBtn.addEventListener('click', () => toggleHistory());
-
-      // Reminders
-      const remBtn = document.getElementById('rem-btn');
-      if (remBtn) remBtn.addEventListener('click', () => window.kairosReminders?.togglePanel());
-
-      // Memory ← was broken, fixed here
-      const memBtn = document.getElementById('mem-btn');
-      if (memBtn) memBtn.addEventListener('click', () => window.kairosMemory?.togglePanel());
-
-      // File reader
-      const fileBtn = document.getElementById('file-btn');
-      if (fileBtn) fileBtn.addEventListener('click', () => window.kairosFiles?.togglePanel());
-
-      // Settings
-      const setBtn = document.getElementById('set-btn');
-      if (setBtn) setBtn.addEventListener('click', () => window.kairosSettings?.togglePanel());
+      document.getElementById('cam-btn')?.addEventListener('click', () => toggleCamera());
+      document.getElementById('screen-btn')?.addEventListener('click', () => toggleScreenShare());
+      document.getElementById('device-btn')?.addEventListener('click', () => toggleDevicePanel());
+      document.getElementById('hist-btn')?.addEventListener('click', () => toggleHistory());
+      document.getElementById('rem-btn')?.addEventListener('click', () => window.kairosReminders?.togglePanel());
+      document.getElementById('mem-btn')?.addEventListener('click', () => window.kairosMemory?.togglePanel());
+      document.getElementById('file-btn')?.addEventListener('click', () => window.kairosFiles?.togglePanel());
+      document.getElementById('set-btn')?.addEventListener('click', () => window.kairosSettings?.togglePanel());
     });
 
     // ── PWA Service Worker ──

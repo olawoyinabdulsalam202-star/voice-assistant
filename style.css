@@ -4,7 +4,6 @@
   --bg: #000008;
 }
 
-/* ── FIX: prevent white flash ── */
 html {
   background: #000008;
 }
@@ -25,7 +24,7 @@ body {
   min-width: 100vw;
 }
 
-/* VIDEO INTRO LAYER */
+/* ── VIDEO INTRO ── */
 #video-layer {
   position: fixed;
   inset: 0;
@@ -122,7 +121,7 @@ body {
   color: var(--cyan);
 }
 
-/* THREE.JS CANVAS */
+/* ── CANVAS ── */
 #bg-canvas {
   position: fixed;
   inset: 0;
@@ -161,7 +160,7 @@ body {
   }
 }
 
-/* HUD CORNERS */
+/* ── HUD CORNERS ── */
 .corner {
   position: fixed;
   width: 55px;
@@ -204,7 +203,7 @@ body {
   border-right: 1px solid rgba(0, 212, 255, 0.3);
 }
 
-/* ── LEFT HUD ── */
+/* ── LEFT HUD — CLOCK ── */
 #hud-left {
   position: fixed;
   left: 28px;
@@ -223,11 +222,20 @@ body {
   opacity: 1;
 }
 
+/* vertical divider — used in left HUD only */
 .hud-divider {
   width: 1px;
   height: 60px;
   background: linear-gradient(to bottom, transparent, rgba(0, 212, 255, 0.4), transparent);
   margin: 4px auto;
+}
+
+/* horizontal divider — used between HUD buttons */
+.hud-divider-h {
+  height: 1px;
+  width: 28px;
+  background: linear-gradient(to right, transparent, rgba(0, 212, 255, 0.4), transparent);
+  margin: 2px auto;
 }
 
 #hud-time {
@@ -251,26 +259,46 @@ body {
   color: rgba(0, 212, 255, 0.25);
 }
 
-/* ── RIGHT HUD ── */
-#hud-right {
+/* ════════════════════════════════════════
+   RIGHT HUD — SPLIT INTO TOP + BOTTOM
+   Top:    CAM · SCR · DEV · LOG   (top-right)
+   Bottom: REM · MEM · FILE · SET  (bottom-right)
+   Both use horizontal (row) layout so buttons
+   never overflow off-screen vertically.
+   ════════════════════════════════════════ */
+
+/* shared base for both groups */
+#hud-right-top,
+#hud-right-bottom {
   position: fixed;
-  right: 28px;
-  top: 50%;
-  transform: translateY(-50%);
+  right: 18px;
   z-index: 11;
   display: flex;
   flex-direction: column;
+  /* stack buttons vertically within each group */
   align-items: center;
-  gap: 8px;
+  gap: 4px;
   opacity: 0;
   transition: opacity 2s ease;
 }
 
-#hud-right.show {
+#hud-right-top {
+  top: 18px;
+}
+
+/* anchored to top-right corner */
+#hud-right-bottom {
+  bottom: 18px;
+}
+
+/* anchored to bottom-right corner */
+
+#hud-right-top.show,
+#hud-right-bottom.show {
   opacity: 1;
 }
 
-/* ── ALL HUD BUTTONS — base style ── */
+/* ── ALL HUD BUTTONS ── */
 #cam-btn,
 #screen-btn,
 #device-btn,
@@ -283,16 +311,17 @@ body {
   border: 1px solid rgba(0, 212, 255, 0.2);
   color: rgba(0, 212, 255, 0.5);
   font-family: 'Share Tech Mono', monospace;
-  font-size: 0.55rem;
-  letter-spacing: 0.15em;
-  padding: 8px 10px;
+  font-size: 0.52rem;
+  letter-spacing: 0.12em;
+  padding: 7px 9px;
   cursor: pointer;
   transition: all 0.2s;
   writing-mode: vertical-rl;
   text-orientation: mixed;
+  white-space: nowrap;
 }
 
-/* ── ALL HUD BUTTONS — hover ── */
+/* hover */
 #cam-btn:hover,
 #screen-btn:hover,
 #device-btn:hover,
@@ -306,7 +335,7 @@ body {
   border-color: rgba(0, 212, 255, 0.5);
 }
 
-/* ── ACTIVE STATES ── */
+/* active states */
 #cam-btn.active {
   color: #00ff8c;
   border-color: rgba(0, 255, 140, 0.5);
@@ -325,7 +354,8 @@ body {
 #rem-btn.active,
 #mem-btn.active,
 #file-btn.active,
-#set-btn.active {
+#set-btn.active,
+#hist-btn.active {
   color: var(--cyan);
   border-color: rgba(0, 212, 255, 0.5);
 }
@@ -434,7 +464,6 @@ body {
   display: none;
   z-index: 15;
   object-fit: cover;
-  filter: none;
   box-shadow: 0 0 20px rgba(0, 212, 255, 0.15);
   border-radius: 2px;
 }
@@ -479,7 +508,7 @@ body {
   padding: 0 20px;
 }
 
-/* HUD RING */
+/* ── HUD RING ── */
 .hud-outer {
   position: relative;
   width: 270px;
@@ -532,7 +561,7 @@ body {
   }
 }
 
-/* ORB */
+/* ── ORB ── */
 .orb {
   width: 125px;
   height: 125px;
@@ -582,7 +611,7 @@ body {
   }
 }
 
-/* GREETING */
+/* ── GREETING & STATUS ── */
 #greeting {
   font-family: 'Orbitron', monospace;
   font-size: clamp(0.75rem, 1.8vw, 1rem);
@@ -615,7 +644,7 @@ body {
   }
 }
 
-/* BOTTOM STRIP */
+/* ── BOTTOM STRIP ── */
 .data-strip {
   position: fixed;
   bottom: 26px;
@@ -641,5 +670,35 @@ body {
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+/* ── MOBILE ADJUSTMENTS ── */
+@media (max-width: 480px) {
+
+  #hud-right-top,
+  #hud-right-bottom {
+    right: 10px;
+  }
+
+  #cam-btn,
+  #screen-btn,
+  #device-btn,
+  #hist-btn,
+  #rem-btn,
+  #mem-btn,
+  #file-btn,
+  #set-btn {
+    font-size: 0.45rem;
+    padding: 6px 7px;
+    letter-spacing: 0.08em;
+  }
+
+  #hud-left {
+    left: 12px;
+  }
+
+  #hud-time {
+    font-size: 0.85rem;
   }
 }
