@@ -1,0 +1,29 @@
+{
+  "name": "K.A.I.R.O.S — Elite Dev",
+  "short_name": "KAIROS",
+  "description": "K.A.I.R.O.S - Kinetic Artificial Intelligence Real-time Operational System — AI Voice Assistant by Elite Dev",
+  "start_url": "/index.htm",
+  "display": "fullscreen",
+  "orientation": "portrait-primary",
+  "background_color": "#000008",
+  "theme_color": "#00d4ff",
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icon-192.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": [
+    "productivity",
+    "utilities"
+  ],
+  "screenshots": []
+}

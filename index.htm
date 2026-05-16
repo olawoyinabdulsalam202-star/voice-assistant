@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>K.A.I.R.O.S</title>
+  <link rel="icon" type="image/x-icon" href="icon-192.png">
+  <link rel="apple-touch-icon" href="logo.png">
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap"
+    rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#00d4ff">
+
+  <style>
+    html,
+    body {
+      background: #000008 !important;
+      margin: 0;
+      padding: 0;
+    }
+
+    #video-layer {
+      background: #000 !important;
+      opacity: 1 !important;
+    }
+  </style>
+</head>
+
+<body>
+
+  <!-- VIDEO INTRO -->
+  <div id="video-layer">
+    <video id="intro-video" src="vid.mp4" playsinline autoplay></video>
+    <div id="fallback">
+      <div>▶ INITIALIZING SYSTEM CORE...</div>
+      <div>▶ LOADING NEURAL PROTOCOLS...</div>
+      <div>▶ CALIBRATING INTERFACE MATRIX...</div>
+      <div>▶ ACTIVATING SENSORY ARRAYS...</div>
+      <div>▶ ONLINE</div>
+    </div>
+  </div>
+  <button id="skip-btn">[ SKIP INTRO ]</button>
+
+  <!-- THREE.JS BACKGROUND -->
+  <canvas id="bg-canvas"></canvas>
+  <div class="grain"></div>
+  <div class="scanline"></div>
+
+  <!-- HUD CORNERS -->
+  <div class="corner tl" id="c1"></div>
+  <div class="corner tr" id="c2"></div>
+  <div class="corner bl" id="c3"></div>
+  <div class="corner br" id="c4"></div>
+
+  <!-- LEFT HUD — CLOCK -->
+  <div id="hud-left">
+    <div id="hud-time">00:00:00</div>
+    <div class="hud-divider"></div>
+    <div id="hud-date"></div>
+    <div id="hud-sys">SYS ONLINE</div>
+  </div>
+
+  <!-- RIGHT HUD — BUTTONS -->
+  <div id="hud-right">
+    <button id="cam-btn">◈ CAM</button>
+    <div class="hud-divider"></div>
+    <button id="screen-btn">⊞ SCR</button>
+    <div class="hud-divider"></div>
+    <button id="device-btn">⊕ DEV</button>
+    <div class="hud-divider"></div>
+    <button id="hist-btn">▤ LOG</button>
+    <div class="hud-divider"></div>
+    <button id="rem-btn">⏱ REM</button>
+    <div class="hud-divider"></div>
+    <button id="mem-btn">◈ MEM</button>
+    <div class="hud-divider"></div>
+    <button id="file-btn">◈ FILE</button>
+    <div class="hud-divider"></div>
+    <button id="set-btn">⚙ SET</button>
+  </div>
+
+  <!-- HISTORY PANEL -->
+  <div id="history-panel">
+    <div class="hist-header">
+      <span>▤ CONVERSATION LOG</span>
+      <button class="hist-close" onclick="toggleHistory()">✕</button>
+    </div>
+    <div id="history-list"></div>
+  </div>
+
+  <!-- CAMERA FEED -->
+  <video id="cam-feed" autoplay playsinline></video>
+
+  <!-- MAIN INTERFACE -->
+  <div id="interface">
+    <h1 class="title">K.A.I.R.O.S</h1>
+    <p class="subtitle">Kinetic Artificial Intelligence Real-time Operational System</p>
+
+    <div class="hud-outer">
+      <div class="ring r1"></div>
+      <div class="ring r2"></div>
+      <div class="ring r3"></div>
+      <div class="orb" id="orb"></div>
+    </div>
+
+    <p id="greeting"></p>
+    <p id="status"></p>
+  </div>
+
+  <!-- BOTTOM STRIP -->
+  <div class="data-strip" id="strip">
+    <span id="clock">00:00:00</span>
+    <span>SYS: ONLINE</span>
+    <span>NET: ACTIVE</span>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="brain.js"></script>
+  <script src="ai.js"></script>
+  <script src="weather.js"></script>
+  <script src="Memory.js"></script>
+  <script src="Multilang.js"></script>
+  <script src="Filereader.js"></script>
+  <script src="Settings.js"></script>
+  <script src="script.js"></script>
+
+  <script>
+    // ── Live clock + date ──
+    setInterval(() => {
+      const now = new Date();
+      const timeEl = document.getElementById('hud-time');
+      const dateEl = document.getElementById('hud-date');
+      const clockEl = document.getElementById('clock');
+      if (timeEl) timeEl.textContent = now.toTimeString().slice(0, 8);
+      if (clockEl) clockEl.textContent = now.toTimeString().slice(0, 8);
+      if (dateEl) dateEl.textContent = now.toDateString().toUpperCase();
+    }, 1000);
+
+    // ── Show HUD after interface reveals ──
+    document.addEventListener('DOMContentLoaded', () => {
+      const observer = new MutationObserver(() => {
+        if (document.getElementById('interface').classList.contains('visible')) {
+          document.getElementById('hud-left').classList.add('show');
+          document.getElementById('hud-right').classList.add('show');
+          observer.disconnect();
+        }
+      });
+      observer.observe(document.getElementById('interface'), { attributes: true });
+    });
+
+    // ── Wire ALL HUD buttons after everything loads ──
+    window.addEventListener('load', () => {
+      // Camera
+      const camBtn = document.getElementById('cam-btn');
+      if (camBtn) camBtn.addEventListener('click', () => toggleCamera());
+
+      // Screen share
+      const screenBtn = document.getElementById('screen-btn');
+      if (screenBtn) screenBtn.addEventListener('click', () => toggleScreenShare());
+
+      // Device panel
+      const deviceBtn = document.getElementById('device-btn');
+      if (deviceBtn) deviceBtn.addEventListener('click', () => toggleDevicePanel());
+
+      // History log
+      const histBtn = document.getElementById('hist-btn');
+      if (histBtn) histBtn.addEventListener('click', () => toggleHistory());
+
+      // Reminders
+      const remBtn = document.getElementById('rem-btn');
+      if (remBtn) remBtn.addEventListener('click', () => window.kairosReminders?.togglePanel());
+
+      // Memory ← was broken, fixed here
+      const memBtn = document.getElementById('mem-btn');
+      if (memBtn) memBtn.addEventListener('click', () => window.kairosMemory?.togglePanel());
+
+      // File reader
+      const fileBtn = document.getElementById('file-btn');
+      if (fileBtn) fileBtn.addEventListener('click', () => window.kairosFiles?.togglePanel());
+
+      // Settings
+      const setBtn = document.getElementById('set-btn');
+      if (setBtn) setBtn.addEventListener('click', () => window.kairosSettings?.togglePanel());
+    });
+
+    // ── PWA Service Worker ──
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js').catch(() => { });
+    }
+  </script>
+</body>
+
+</html>
