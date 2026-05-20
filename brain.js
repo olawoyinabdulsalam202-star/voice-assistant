@@ -2,10 +2,9 @@
 //  brain.js  —  KAIROS AI ENGINE  v12
 // ════════════════════════════════════════
 
-const BACKEND_URL = "http://localhost:5000/ask";
-const BACKEND_VISION_URL = "http://localhost:5000/vision";
-const BACKEND_SCREEN_URL = "http://localhost:5000/screen";
-
+const BACKEND_URL = "https://kairos-oabh.onrender.com/ask";
+const BACKEND_VISION_URL = "https://kairos-oabh.onrender.com/vision";
+const BACKEND_SCREEN_URL = "https://kairos-oabh.onrender.com/screen";
 let conversationHistory = [];
 
 // ── TEXT CHAT ──
