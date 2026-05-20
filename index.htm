@@ -73,8 +73,10 @@
     <button id="hist-btn">▤ LOG</button>
   </div>
 
-  <!-- RIGHT HUD BOTTOM — REM · MEM · FILE · SET -->
+  <!-- RIGHT HUD BOTTOM — TXT · REM · MEM · FILE · SET -->
   <div id="hud-right-bottom">
+    <button id="txt-btn">⌨ TXT</button>
+    <div class="hud-divider-h"></div>
     <button id="rem-btn">⏱ REM</button>
     <div class="hud-divider-h"></div>
     <button id="mem-btn">◈ MEM</button>
@@ -127,6 +129,7 @@
   <script src="Multilang.js"></script>
   <script src="Filereader.js"></script>
   <script src="Setings.js"></script>
+  <script src="text.js"></script>
   <script src="script.js"></script>
 
   <script>
@@ -154,7 +157,7 @@
       observer.observe(document.getElementById('interface'), { attributes: true });
     });
 
-    // ── Wire ALL HUD buttons after everything loads ──
+    // ── Wire ALL HUD buttons after load ──
     window.addEventListener('load', () => {
       document.getElementById('cam-btn')?.addEventListener('click', () => toggleCamera());
       document.getElementById('screen-btn')?.addEventListener('click', () => toggleScreenShare());
@@ -164,6 +167,7 @@
       document.getElementById('mem-btn')?.addEventListener('click', () => window.kairosMemory?.togglePanel());
       document.getElementById('file-btn')?.addEventListener('click', () => window.kairosFiles?.togglePanel());
       document.getElementById('set-btn')?.addEventListener('click', () => window.kairosSettings?.togglePanel());
+      document.getElementById('txt-btn')?.addEventListener('click', () => window.kairosTextMode?.togglePanel());
     });
 
     // ── PWA Service Worker ──

@@ -1,0 +1,5 @@
+# Environment variables
+.env
+
+# Database
+kairos_memory.db

@@ -2,6 +2,7 @@
   --cyan: #00d4ff;
   --cyan-dim: rgba(0, 212, 255, 0.35);
   --bg: #000008;
+  --ring-color: #00d4ff;
 }
 
 html {
@@ -222,7 +223,6 @@ body {
   opacity: 1;
 }
 
-/* vertical divider — used in left HUD only */
 .hud-divider {
   width: 1px;
   height: 60px;
@@ -230,7 +230,6 @@ body {
   margin: 4px auto;
 }
 
-/* horizontal divider — used between HUD buttons */
 .hud-divider-h {
   height: 1px;
   width: 28px;
@@ -259,15 +258,7 @@ body {
   color: rgba(0, 212, 255, 0.25);
 }
 
-/* ════════════════════════════════════════
-   RIGHT HUD — SPLIT INTO TOP + BOTTOM
-   Top:    CAM · SCR · DEV · LOG   (top-right)
-   Bottom: REM · MEM · FILE · SET  (bottom-right)
-   Both use horizontal (row) layout so buttons
-   never overflow off-screen vertically.
-   ════════════════════════════════════════ */
-
-/* shared base for both groups */
+/* ── RIGHT HUD ── */
 #hud-right-top,
 #hud-right-bottom {
   position: fixed;
@@ -275,7 +266,6 @@ body {
   z-index: 11;
   display: flex;
   flex-direction: column;
-  /* stack buttons vertically within each group */
   align-items: center;
   gap: 4px;
   opacity: 0;
@@ -286,12 +276,9 @@ body {
   top: 18px;
 }
 
-/* anchored to top-right corner */
 #hud-right-bottom {
   bottom: 18px;
 }
-
-/* anchored to bottom-right corner */
 
 #hud-right-top.show,
 #hud-right-bottom.show {
@@ -306,6 +293,7 @@ body {
 #rem-btn,
 #mem-btn,
 #file-btn,
+#txt-btn,
 #set-btn {
   background: rgba(0, 0, 0, 0.4);
   border: 1px solid rgba(0, 212, 255, 0.2);
@@ -321,13 +309,13 @@ body {
   white-space: nowrap;
 }
 
-/* hover */
 #cam-btn:hover,
 #screen-btn:hover,
 #device-btn:hover,
 #hist-btn:hover,
 #rem-btn:hover,
 #mem-btn:hover,
+#txt-btn:hover,
 #file-btn:hover,
 #set-btn:hover {
   background: rgba(0, 212, 255, 0.08);
@@ -335,7 +323,6 @@ body {
   border-color: rgba(0, 212, 255, 0.5);
 }
 
-/* active states */
 #cam-btn.active {
   color: #00ff8c;
   border-color: rgba(0, 255, 140, 0.5);
@@ -355,6 +342,7 @@ body {
 #mem-btn.active,
 #file-btn.active,
 #set-btn.active,
+#txt-btn.active,
 #hist-btn.active {
   color: var(--cyan);
   border-color: rgba(0, 212, 255, 0.5);
@@ -531,14 +519,16 @@ body {
   animation: spin 18s linear infinite;
 }
 
+/* r2 uses --ring-color set by settings.js */
 .r2 {
   width: 248px;
   height: 248px;
-  border-top: 2px solid var(--cyan);
+  border-top: 2px solid var(--ring-color, var(--cyan));
   border-right: 2px solid transparent;
   border-bottom: 2px solid transparent;
   border-left: 2px solid transparent;
   animation: spin 2.5s linear infinite;
+  transition: border-top-color 0.5s ease;
 }
 
 .r3 {
@@ -569,10 +559,20 @@ body {
   position: relative;
   z-index: 2;
   cursor: pointer;
-  background: radial-gradient(circle at 38% 32%, rgba(140, 230, 255, 0.95) 0%, rgba(0, 140, 220, 0.7) 35%, rgba(0, 20, 70, 0.95) 75%);
-  box-shadow: 0 0 40px rgba(0, 212, 255, 0.9), 0 0 80px rgba(0, 160, 255, 0.45), 0 0 130px rgba(0, 100, 200, 0.2), inset 0 0 35px rgba(0, 212, 255, 0.15);
-  animation: orb-pulse 3s ease-in-out infinite;
-  transition: box-shadow 0.4s ease, background 0.4s ease, transform 0.15s ease;
+
+  /* Default standby — overridden by settings.js applyOrbState() */
+  background: radial-gradient(circle at 38% 32%,
+      rgba(140, 230, 255, 0.95) 0%,
+      rgba(0, 140, 220, 0.7) 35%,
+      rgba(0, 20, 70, 0.95) 75%);
+  box-shadow:
+    0 0 40px rgba(0, 212, 255, 0.9),
+    0 0 80px rgba(0, 160, 255, 0.45),
+    0 0 130px rgba(0, 100, 200, 0.2),
+    inset 0 0 35px rgba(0, 212, 255, 0.15);
+
+  /* Smooth color transitions between states */
+  transition: background 0.45s ease, box-shadow 0.45s ease, transform 0.15s ease;
 }
 
 .orb:hover {
@@ -583,32 +583,138 @@ body {
   transform: scale(0.95);
 }
 
+/* ── ORB STATE ANIMATIONS ── */
+/* Injected by settings.js via <style id="kairos-orb-styles"> */
+/* Fallback CSS animations as backup */
+
+.orb.orb-standby {
+  animation: orb-standby-fb 3s ease-in-out infinite;
+}
+
+.orb.orb-listening {
+  animation: orb-listening-fb 0.6s ease-in-out infinite !important;
+}
+
+.orb.orb-thinking {
+  animation: orb-thinking-fb 1.2s ease-in-out infinite !important;
+}
+
+.orb.orb-speaking {
+  animation: orb-speaking-fb 0.9s ease-in-out infinite !important;
+}
+
+.orb.orb-error {
+  animation: orb-error-fb 0.5s ease-in-out infinite !important;
+}
+
+@keyframes orb-standby-fb {
+
+  0%,
+  100% {
+    transform: scale(1);
+    filter: brightness(1);
+  }
+
+  50% {
+    transform: scale(1.04);
+    filter: brightness(1.15);
+  }
+}
+
+@keyframes orb-listening-fb {
+
+  0%,
+  100% {
+    transform: scale(1);
+    filter: brightness(1);
+  }
+
+  25% {
+    transform: scale(1.07);
+    filter: brightness(1.3);
+  }
+
+  75% {
+    transform: scale(0.97);
+    filter: brightness(0.9);
+  }
+}
+
+@keyframes orb-thinking-fb {
+
+  0%,
+  100% {
+    transform: scale(1) rotate(0deg);
+    filter: brightness(1);
+  }
+
+  33% {
+    transform: scale(1.05) rotate(1deg);
+    filter: brightness(1.2);
+  }
+
+  66% {
+    transform: scale(1.02) rotate(-1deg);
+    filter: brightness(1.1);
+  }
+}
+
+@keyframes orb-speaking-fb {
+
+  0%,
+  100% {
+    transform: scale(1);
+    filter: brightness(1);
+  }
+
+  20% {
+    transform: scale(1.06);
+    filter: brightness(1.25);
+  }
+
+  40% {
+    transform: scale(1.02);
+    filter: brightness(1.05);
+  }
+
+  60% {
+    transform: scale(1.08);
+    filter: brightness(1.3);
+  }
+
+  80% {
+    transform: scale(1.01);
+    filter: brightness(1.08);
+  }
+}
+
+@keyframes orb-error-fb {
+
+  0%,
+  100% {
+    transform: scale(1) translateX(0);
+  }
+
+  20% {
+    transform: scale(1.03) translateX(-3px);
+  }
+
+  40% {
+    transform: scale(1.03) translateX(3px);
+  }
+
+  60% {
+    transform: scale(1.03) translateX(-2px);
+  }
+
+  80% {
+    transform: scale(1.03) translateX(2px);
+  }
+}
+
+/* Legacy class kept for backward compat with script.js */
 .orb.listening {
-  animation: orb-listen 0.7s ease-in-out infinite !important;
-}
-
-@keyframes orb-pulse {
-
-  0%,
-  100% {
-    box-shadow: 0 0 40px rgba(0, 212, 255, 0.9), 0 0 80px rgba(0, 160, 255, 0.45), 0 0 130px rgba(0, 100, 200, 0.2);
-  }
-
-  50% {
-    box-shadow: 0 0 60px rgba(0, 212, 255, 1), 0 0 120px rgba(0, 160, 255, 0.65), 0 0 190px rgba(0, 100, 200, 0.38);
-  }
-}
-
-@keyframes orb-listen {
-
-  0%,
-  100% {
-    box-shadow: 0 0 50px rgba(0, 255, 140, 1), 0 0 100px rgba(0, 200, 100, 0.55);
-  }
-
-  50% {
-    box-shadow: 0 0 80px rgba(0, 255, 180, 1), 0 0 160px rgba(0, 220, 120, 0.75);
-  }
+  animation: orb-listening-fb 0.6s ease-in-out infinite !important;
 }
 
 /* ── GREETING & STATUS ── */
@@ -651,6 +757,7 @@ body {
   left: 50%;
   transform: translateX(-50%);
   display: flex;
+  align-items: center;
   gap: 40px;
   font-size: 0.58rem;
   letter-spacing: 0.2em;
@@ -659,6 +766,14 @@ body {
   pointer-events: none;
   opacity: 0;
   transition: opacity 2s ease;
+}
+
+/* Signal span gets dynamic color from settings.js */
+#signal-span {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  transition: color 0.4s ease;
 }
 
 @keyframes fadeLine {

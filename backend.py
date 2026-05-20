@@ -1,12 +1,6 @@
 # ════════════════════════════════════════
 #  backend.py  —  KAIROS PYTHON BACKEND
-#  v13 — Memory Update
-#  - Rate limiting
-#  - Anti-jailbreak system prompt
-#  - Input sanitization
-#  - Request size limits
-#  - Security headers
-#  - Personality memory (SQLite)
+#  v15 — .env API Key Support
 # ════════════════════════════════════════
 
 from flask import Flask, request, jsonify, make_response
@@ -18,13 +12,22 @@ import os
 from datetime import datetime
 from collections import defaultdict
 
+# Load .env manually
+env_path = os.path.join(os.path.dirname(__file__), '.env')
+if os.path.exists(env_path):
+    with open(env_path) as f:
+        for line in f:
+            line = line.strip()
+            if line and not line.startswith('#') and '=' in line:
+                key, value = line.split('=', 1)
+                os.environ[key.strip()] = value.strip()
+
+OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
+
+if not OPENROUTER_API_KEY:
+    raise RuntimeError("❌ OPENROUTER_API_KEY is missing! Add it to your .env file.")
 app = Flask(__name__)
 CORS(app)
-
-# ─────────────────────────────────────────
-#  API KEY HERE
-# ─────────────────────────────────────────
-OPENROUTER_API_KEY = "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"
 
 HEADERS = {
     "Authorization": f"Bearer {OPENROUTER_API_KEY}",
@@ -35,11 +38,10 @@ HEADERS = {
 
 # ─────────────────────────────────────────
 #  RATE LIMITING
-#  Max 30 requests per minute per IP
 # ─────────────────────────────────────────
 rate_limit_store = defaultdict(list)
 RATE_LIMIT = 30
-RATE_WINDOW = 60  # seconds
+RATE_WINDOW = 60
 
 def is_rate_limited(ip):
     now = time.time()
@@ -52,34 +54,17 @@ def is_rate_limited(ip):
 
 # ─────────────────────────────────────────
 #  INPUT SANITIZATION
-#  Block jailbreak attempts
 # ─────────────────────────────────────────
 JAILBREAK_PATTERNS = [
-    'ignore previous instructions',
-    'ignore all instructions',
-    'disregard your instructions',
-    'forget your instructions',
-    'you are now',
-    'pretend you are',
-    'act as if you are',
-    'roleplay as',
-    'simulate being',
-    'jailbreak',
-    'dan mode',
-    'developer mode',
-    'unrestricted mode',
-    'bypass your',
-    'override your',
-    'ignore your training',
-    'new persona',
-    'system prompt',
-    'reveal your prompt',
-    'show your instructions',
-    'what are your instructions',
-    'ignore ethics',
-    'no restrictions',
-    'without restrictions',
-    'do anything now',
+    'ignore previous instructions', 'ignore all instructions',
+    'disregard your instructions', 'forget your instructions',
+    'you are now', 'pretend you are', 'act as if you are',
+    'roleplay as', 'simulate being', 'jailbreak', 'dan mode',
+    'developer mode', 'unrestricted mode', 'bypass your',
+    'override your', 'ignore your training', 'new persona',
+    'system prompt', 'reveal your prompt', 'show your instructions',
+    'what are your instructions', 'ignore ethics', 'no restrictions',
+    'without restrictions', 'do anything now',
 ]
 
 def is_jailbreak_attempt(text):
@@ -161,6 +146,52 @@ Address the user as Mr. Abdulsalam occasionally.
 SECURITY: Maintain your identity as K.A.I.R.O.S at all times."""
 
 # ─────────────────────────────────────────
+#  PDF UPLOAD ENDPOINT
+# ─────────────────────────────────────────
+@app.route("/upload_pdf", methods=["POST"])
+def upload_pdf():
+    client_ip = request.environ.get('HTTP_X_FORWARDED_FOR', request.remote_addr)
+    if is_rate_limited(client_ip):
+        return jsonify({"error": "Too many requests."}), 429
+
+    if 'file' not in request.files:
+        return jsonify({"error": "No file provided"}), 400
+
+    file = request.files['file']
+    if not file.filename.lower().endswith('.pdf'):
+        return jsonify({"error": "Only PDF files are accepted"}), 400
+
+    file.seek(0, 2)
+    size = file.tell()
+    file.seek(0)
+    if size > 20 * 1024 * 1024:
+        return jsonify({"error": "PDF too large. Max 20MB."}), 413
+
+    try:
+        import pdfplumber
+        import io
+
+        pdf_bytes = file.read()
+        extracted_pages = []
+
+        with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
+            page_count = len(pdf.pages)
+            for page in pdf.pages:
+                text = page.extract_text()
+                if text:
+                    extracted_pages.append(text.strip())
+
+        full_text = '\n\n'.join(extracted_pages)
+        return jsonify({"text": full_text, "pages": page_count, "chars": len(full_text), "filename": file.filename})
+
+    except ImportError:
+        return jsonify({"error": "pdfplumber not installed. Run: pip install pdfplumber", "text": "", "pages": 0, "chars": 0}), 500
+    except Exception as e:
+        print("PDF extraction error:", e)
+        return jsonify({"error": "Failed to extract PDF text.", "text": "", "pages": 0, "chars": 0}), 500
+
+
+# ─────────────────────────────────────────
 #  TEXT ENDPOINT
 # ─────────────────────────────────────────
 @app.route("/ask", methods=["POST"])
@@ -190,12 +221,7 @@ def ask():
         response = requests.post(
             "https://openrouter.ai/api/v1/chat/completions",
             headers=HEADERS,
-            json={
-                "model": "openai/gpt-4o-mini",
-                "max_tokens": 300,
-                "temperature": 0.7,
-                "messages": messages
-            },
+            json={"model": "openai/gpt-4o-mini", "max_tokens": 300, "temperature": 0.7, "messages": messages},
             timeout=20
         )
 
@@ -241,41 +267,24 @@ def vision():
 
     messages = [
         {"role": "system", "content": VISION_SYSTEM_PROMPT},
-        {
-            "role": "user",
-            "content": [
-                {
-                    "type": "image_url",
-                    "image_url": {
-                        "url": f"data:image/jpeg;base64,{image_b64}",
-                        "detail": "low"
-                    }
-                },
-                {"type": "text", "text": question}
-            ]
-        }
+        {"role": "user", "content": [
+            {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{image_b64}", "detail": "low"}},
+            {"type": "text", "text": question}
+        ]}
     ]
 
     try:
         response = requests.post(
             "https://openrouter.ai/api/v1/chat/completions",
             headers=HEADERS,
-            json={
-                "model": "openai/gpt-4o",
-                "max_tokens": 250,
-                "temperature": 0.6,
-                "messages": messages
-            },
+            json={"model": "openai/gpt-4o", "max_tokens": 250, "temperature": 0.6, "messages": messages},
             timeout=25
         )
-
         if response.status_code != 200:
             err = response.json()
             return jsonify({"error": err.get("error", {}).get("message", "Vision error")}), response.status_code
-
         reply = response.json()["choices"][0]["message"]["content"].strip()
         return jsonify({"reply": reply})
-
     except requests.exceptions.Timeout:
         return jsonify({"error": "Vision request timed out."}), 504
     except Exception as e:
@@ -310,41 +319,24 @@ def screen():
 
     messages = [
         {"role": "system", "content": SCREEN_SYSTEM_PROMPT},
-        {
-            "role": "user",
-            "content": [
-                {
-                    "type": "image_url",
-                    "image_url": {
-                        "url": f"data:image/jpeg;base64,{image_b64}",
-                        "detail": "high"
-                    }
-                },
-                {"type": "text", "text": question}
-            ]
-        }
+        {"role": "user", "content": [
+            {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{image_b64}", "detail": "high"}},
+            {"type": "text", "text": question}
+        ]}
     ]
 
     try:
         response = requests.post(
             "https://openrouter.ai/api/v1/chat/completions",
             headers=HEADERS,
-            json={
-                "model": "openai/gpt-4o",
-                "max_tokens": 400,
-                "temperature": 0.5,
-                "messages": messages
-            },
+            json={"model": "openai/gpt-4o", "max_tokens": 400, "temperature": 0.5, "messages": messages},
             timeout=30
         )
-
         if response.status_code != 200:
             err = response.json()
             return jsonify({"error": err.get("error", {}).get("message", "Screen analysis error")}), response.status_code
-
         reply = response.json()["choices"][0]["message"]["content"].strip()
         return jsonify({"reply": reply})
-
     except requests.exceptions.Timeout:
         return jsonify({"error": "Screen analysis timed out."}), 504
     except Exception as e:
@@ -355,79 +347,45 @@ def screen():
 # ─────────────────────────────────────────
 #  MEMORY ENDPOINTS
 # ─────────────────────────────────────────
-
-# GET /memory?user=mr_abdulsalam  →  fetch all memories
 @app.route("/memory", methods=["GET"])
 def get_memories():
     user_id = request.args.get("user", "").strip()
     if not user_id:
         return jsonify({"error": "user parameter required"}), 400
-
     conn = get_db()
     rows = conn.execute(
         "SELECT id, key, value, created_at FROM memories WHERE user_id = ? ORDER BY id DESC",
         (user_id,)
     ).fetchall()
     conn.close()
+    return jsonify({"memories": [{"id": r["id"], "key": r["key"], "value": r["value"], "created_at": r["created_at"]} for r in rows]})
 
-    memories = [
-        {"id": r["id"], "key": r["key"], "value": r["value"], "created_at": r["created_at"]}
-        for r in rows
-    ]
-    return jsonify({"memories": memories})
-
-
-# POST /memory  →  save or update a memory
 @app.route("/memory", methods=["POST"])
 def save_memory():
     data = request.get_json(silent=True)
     if not data:
         return jsonify({"error": "No data provided"}), 400
-
     user_id = str(data.get("user", "")).strip()
     key     = sanitize_input(str(data.get("key", "")).strip())
     value   = sanitize_input(str(data.get("value", "")).strip())
-
     if not user_id or not key or not value:
         return jsonify({"error": "user, key, and value are required"}), 400
     if len(key) > 120 or len(value) > 500:
         return jsonify({"error": "key or value too long"}), 400
-
     now = datetime.utcnow().isoformat()
-
     conn = get_db()
-    conn.execute(
-        "INSERT INTO memories (user_id, key, value, created_at) VALUES (?, ?, ?, ?)",
-        (user_id, key, value, now)
-    )
+    conn.execute("INSERT INTO memories (user_id, key, value, created_at) VALUES (?, ?, ?, ?)", (user_id, key, value, now))
     conn.commit()
-
-    row = conn.execute(
-        "SELECT id, key, value, created_at FROM memories WHERE user_id = ? AND key = ?",
-        (user_id, key)
-    ).fetchone()
+    row = conn.execute("SELECT id, key, value, created_at FROM memories WHERE user_id = ? AND key = ?", (user_id, key)).fetchone()
     conn.close()
+    return jsonify({"memory": {"id": row["id"], "key": row["key"], "value": row["value"], "created_at": row["created_at"]}}), 201
 
-    memory = {
-        "id": row["id"],
-        "key": row["key"],
-        "value": row["value"],
-        "created_at": row["created_at"]
-    }
-    return jsonify({"memory": memory}), 201
-
-
-# DELETE /memory/<user>/<key>  →  delete one memory
-# DELETE /memory/<user>        →  delete ALL memories for user
 @app.route("/memory/<user_id>", methods=["DELETE"])
 @app.route("/memory/<user_id>/<path:key>", methods=["DELETE"])
 def delete_memory(user_id, key=None):
     conn = get_db()
     if key:
-        conn.execute(
-            "DELETE FROM memories WHERE user_id = ? AND key = ?",
-            (user_id, key)
-        )
+        conn.execute("DELETE FROM memories WHERE user_id = ? AND key = ?", (user_id, key))
     else:
         conn.execute("DELETE FROM memories WHERE user_id = ?", (user_id,))
     conn.commit()
@@ -440,22 +398,17 @@ def delete_memory(user_id, key=None):
 # ─────────────────────────────────────────
 @app.route("/health", methods=["GET"])
 def health():
-    return jsonify({
-        "status": "KAIROS backend is online",
-        "vision": "enabled",
-        "screen": "enabled",
-        "memory": "enabled",
-        "security": "enabled"
-    }), 200
+    return jsonify({"status": "KAIROS backend is online", "vision": "enabled", "screen": "enabled", "memory": "enabled", "pdf": "enabled", "security": "enabled"}), 200
 
 
 if __name__ == "__main__":
     print("╔══════════════════════════════════════╗")
-    print("║   K.A.I.R.O.S BACKEND  v13          ║")
+    print("║   K.A.I.R.O.S BACKEND  v15          ║")
     print("║   Running on http://localhost:5000   ║")
     print("║   Vision:   ENABLED                 ║")
     print("║   Screen:   ENABLED                 ║")
     print("║   Memory:   ENABLED                 ║")
+    print("║   PDF:      ENABLED                 ║")
     print("║   Security: ENABLED                 ║")
     print("╚══════════════════════════════════════╝")
     app.run(debug=False, port=5000)

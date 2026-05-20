@@ -1,13 +1,23 @@
 // ════════════════════════════════════════
-//  script.js  —  KAIROS CORE  v13
+//  script.js  —  KAIROS CORE  v14
 //  New:
-//  1. Renamed Jarvis → Kairos throughout
-//  2. Multiple wake words:
-//     "Kairos", "Hey Kairos",
-//     "Wake up Kairos", "Rise Kairos",
-//     "Kairos awaken", "Engage Kairos"
-//  3. Clap detection — two claps activates
+//  • Orb state engine wired (setOrbState)
+//    standby / listening / thinking / speaking / error
 // ════════════════════════════════════════
+
+// ── ORB STATE HELPER ──
+// Single function so every state change goes through settings.js
+function setOrb(state) {
+  if (typeof window.setOrbState === 'function') {
+    window.setOrbState(state);
+  } else {
+    // Fallback: legacy class toggle while settings.js loads
+    const o = document.getElementById('orb');
+    if (!o) return;
+    o.classList.remove('orb-standby','orb-listening','orb-thinking','orb-speaking','orb-error','listening');
+    if (state === 'listening') o.classList.add('listening');
+  }
+}
 
 // ── THREE.JS BACKGROUND ──
 const renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('bg-canvas'), antialias: true, alpha: true });
@@ -59,9 +69,10 @@ function revealInterface() {
       const el = document.getElementById(id);
       if (el) el.classList.add('show');
     });
+    setOrb('standby');
     autoGreet();
     startWakeWordListener();
-    startClapDetection();   // clap to activate
+    startClapDetection();
     startClock();
     await buildDeviceSelector();
     autoConnectSavedDevices();
@@ -282,8 +293,6 @@ function checkDevQuestion(text) { return DEV_KEYWORDS.some(kw => text.toLowerCas
 // ════════════════════════════════════════
 function checkVoiceCommand(text) {
   const lower = text.toLowerCase();
-
-  // File reader voice
   const fileReply = window.kairosFiles?.handleVoice(text);
   if (fileReply) { speak(fileReply); return; }
   if (['turn on camera', 'open camera', 'activate camera', 'enable camera', 'start camera', 'show camera', 'camera on'].some(p => lower.includes(p))) return 'CAMERA_ON';
@@ -294,8 +303,6 @@ function checkVoiceCommand(text) {
   if (['close history', 'hide history', 'close log'].some(p => lower.includes(p))) return 'HISTORY_CLOSE';
   if (['show devices', 'open devices', 'device settings', 'change microphone', 'change camera', 'switch mic', 'switch camera'].some(p => lower.includes(p))) return 'DEVICES_OPEN';
   if (['go to sleep', 'sleep', 'goodbye kairos', 'goodbye', 'good night kairos', 'good night k', 'kairos sleep', 'standby'].some(p => lower.includes(p))) return 'SLEEP';
-
-  // Weather is handled inline in processCommand — not a voice command
   return null;
 }
 
@@ -367,14 +374,9 @@ const ACTIVE_TIMEOUT_MS = 60000;
 //  WAKE WORDS
 // ════════════════════════════════════════
 const WAKE_WORDS = [
-  'kairos',
-  'hey kairos',
-  'wake up kairos',
-  'rise kairos',
-  'kairos awaken',
-  'engage kairos',
-  'kairos online',
-  'activate kairos',
+  'kairos', 'hey kairos', 'wake up kairos',
+  'rise kairos', 'kairos awaken', 'engage kairos',
+  'kairos online', 'activate kairos',
 ];
 
 function isWakeWord(transcript) {
@@ -412,6 +414,7 @@ async function startClapDetection() {
             clapCount = 0;
             clapCooldown = true;
             setTimeout(() => { clapCooldown = false; }, 2000);
+            // Visual feedback — brief scale pulse
             orb.style.transform = 'scale(1.2)';
             setTimeout(() => { orb.style.transform = ''; }, 200);
             if (!isAwake && !isProcessing && !wakeDebounce) {
@@ -474,7 +477,8 @@ function activateKairos() {
   isAwake = true;
   clearTimeout(sleepTimer);
   try { wakeRec.onend = null; wakeRec.abort(); } catch (e) { }
-  orb.classList.add('listening');
+
+  setOrb('listening');                                    // ← ORB: listening
   statusEl.textContent = '▶ LISTENING...';
   greetingEl.textContent = '';
   speak("Yes, how can I help?", () => { startMainListener(); });
@@ -505,7 +509,8 @@ function startMainListener() {
     const SILENCE_MS = 1400;
 
     mainRec.onstart = () => {
-      mainRecActive = true; orb.classList.add('listening');
+      mainRecActive = true;
+      setOrb('listening');                                // ← ORB: listening
       statusEl.textContent = screenStream ? '▶ LISTENING — SCREEN ON' : cameraStream ? '▶ LISTENING — CAMERA ON' : '▶ LISTENING...';
     };
 
@@ -529,7 +534,9 @@ function startMainListener() {
     };
 
     mainRec.onend = () => {
-      mainRecActive = false; orb.classList.remove('listening');
+      mainRecActive = false;
+      // Only remove listening state if we're not about to restart
+      if (!isAwake || isProcessing) setOrb(isAwake ? 'thinking' : 'standby');
       if (isAwake && !isProcessing && !restartPending) startMainListener();
     };
 
@@ -555,7 +562,7 @@ async function processCommand(rawInput) {
   const userSaid = sanitizeInput(rawInput);
   if (!userSaid) return;
 
-  // ── REMINDERS — checked  ──
+  // ── REMINDERS ──
   if (window.kairosReminders) {
     const remReply = window.kairosReminders.handleVoice(userSaid);
     if (remReply) {
@@ -566,30 +573,32 @@ async function processCommand(rawInput) {
         mainRec = null;
       }
       mainRecActive = false;
+      setOrb('speaking');                                 // ← ORB: speaking
       statusEl.textContent = '▶ REMINDER SET';
       resumeAfterReply(remReply);
       return;
     }
   }
 
-  // ── MEMORY — checked──
-if (window.kairosMemory) {
-  const memReply = await window.kairosMemory.handleVoice(userSaid);
-  if (memReply) {
-    addToHistory('user', userSaid);
-    isProcessing = true;
-    if (mainRec) {
-      try { mainRec.onend = null; mainRec.onerror = null; mainRec.onresult = null; mainRec.abort(); } catch (e) {}
-      mainRec = null;
+  // ── MEMORY ──
+  if (window.kairosMemory) {
+    const memReply = await window.kairosMemory.handleVoice(userSaid);
+    if (memReply) {
+      addToHistory('user', userSaid);
+      isProcessing = true;
+      if (mainRec) {
+        try { mainRec.onend = null; mainRec.onerror = null; mainRec.onresult = null; mainRec.abort(); } catch (e) { }
+        mainRec = null;
+      }
+      mainRecActive = false;
+      setOrb('speaking');                                 // ← ORB: speaking
+      statusEl.textContent = '▶ MEMORY UPDATED';
+      resumeAfterReply(memReply);
+      return;
     }
-    mainRecActive = false;
-    statusEl.textContent = '▶ MEMORY UPDATED';
-    resumeAfterReply(memReply);
-    return;
   }
-}
 
-  // ── VOICE COMMANDS (camera, screen, sleep, etc.) ──
+  // ── VOICE COMMANDS ──
   const voiceCmd = checkVoiceCommand(userSaid);
   if (voiceCmd) {
     const handled = await handleVoiceCommand(voiceCmd);
@@ -612,7 +621,8 @@ if (window.kairosMemory) {
 
   addToHistory('user', userSaid);
   greetingEl.textContent = `"${userSaid}"`;
-  statusEl.textContent = '▶ RESPONDING...';
+  setOrb('thinking');                                     // ← ORB: thinking (fetching answer)
+  statusEl.textContent = '▶ THINKING...';
 
   let reply;
   try {
@@ -622,6 +632,7 @@ if (window.kairosMemory) {
       statusEl.textContent = '▶ FETCHING WEATHER...';
       reply = await window.getWeatherReply(userSaid);
     } else if (isScreenRequest(userSaid) || (screenStream && isVisionRequest(userSaid))) {
+      setOrb('thinking');
       statusEl.textContent = '▶ ANALYSING SCREEN...';
       if (!screenStream) {
         const opened = await startScreenShare();
@@ -631,6 +642,7 @@ if (window.kairosMemory) {
       const imgB64 = captureScreenFrame();
       reply = imgB64 ? await window.askKairosScreen(imgB64, userSaid) : "I couldn't capture your screen.";
     } else if (isVisionRequest(userSaid)) {
+      setOrb('thinking');
       statusEl.textContent = '▶ ANALYSING CAMERA...';
       if (!cameraStream) {
         const opened = await openCamera(selectedCamId);
@@ -644,6 +656,7 @@ if (window.kairosMemory) {
     }
   } catch (err) {
     console.error('processCommand error:', err);
+    setOrb('error');                                      // ← ORB: error
     reply = "I ran into an issue. Please try again.";
   }
 
@@ -655,11 +668,12 @@ function resumeAfterReply(reply) {
     const blocks = extractCodeBlocks(reply);
     if (blocks.length > 0) showCodePanel(blocks);
   }
+  setOrb('speaking');                                     // ← ORB: speaking (responding)
   speakAndType(greetingEl, reply, () => {
     addToHistory('kairos', reply);
     isProcessing = false;
     statusEl.textContent = '▶ ACTIVE — SPEAK ANYTIME';
-    orb.classList.add('listening');
+    setOrb('listening');                                  // ← ORB: back to listening
     sleepTimer = setTimeout(() => { if (!isProcessing) sleepKairos(); }, ACTIVE_TIMEOUT_MS);
     setTimeout(() => { if (isAwake && !isProcessing) startMainListener(); }, 600);
   });
@@ -671,7 +685,7 @@ function resumeAfterReply(reply) {
 function sleepKairos() {
   isAwake = false; isProcessing = false; mainRecActive = false;
   clearTimeout(sleepTimer); stopKairos();
-  orb.classList.remove('listening');
+  setOrb('standby');                                      // ← ORB: standby
   statusEl.textContent = '▶ STANDBY — SAY "HEY KAIROS" OR CLAP TWICE';
   if (mainRec) {
     try { mainRec.onend = null; mainRec.onerror = null; mainRec.onresult = null; mainRec.abort(); } catch (e) { }
@@ -995,7 +1009,7 @@ document.addEventListener('keydown', (e) => {
   if (e.key === 'c' || e.key === 'C') toggleCamera();
   if (e.key === 's' || e.key === 'S') toggleScreenShare();
   if (e.key === 'd' || e.key === 'D') toggleDevicePanel();
-  if (e.key === 'r' || e.key === 'R') window.kairosReminders.togglePanel();
+  if (e.key === 'r' || e.key === 'R') window.kairosReminders?.togglePanel();
   if (e.key === 'm' || e.key === 'M') window.kairosMemory?.togglePanel();
   if (e.key === 'f' || e.key === 'F') window.kairosFiles?.togglePanel();
 });
