@@ -32,7 +32,7 @@ CORS(app)
 HEADERS = {
     "Authorization": f"Bearer {OPENROUTER_API_KEY}",
     "Content-Type": "application/json",
-    "HTTP-Referer": "http://127.0.0.1:5500",
+    "HTTP-Referer": "https://kairos-one-snowy.vercel.app",
     "X-Title": "KAIROS Voice Assistant"
 }
 

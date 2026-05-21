@@ -41,7 +41,7 @@
       memoryLoaded = true;
     } catch (err) {
       console.warn('memory.js: could not load memories:', err.message);
-      memoryLoaded = true; // don't block — just no memory
+      memoryLoaded = true; // don't block — just no memmory
     }
   }
 
