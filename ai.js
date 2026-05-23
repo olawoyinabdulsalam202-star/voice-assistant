@@ -352,7 +352,7 @@
 //  Language patched via multilang.js
 // ════════════════════════════════════════
 window.askKairosVision = async function (imageB64, prompt) {
-  const res = await fetch("https://kairos-oabh.onrender.com/vision", {
+  const res = await fetch("http://127.0.0.1:5000/vision", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ image: imageB64, question: prompt })
@@ -362,7 +362,7 @@ window.askKairosVision = async function (imageB64, prompt) {
 };
 
 window.askKairosScreen = async function (imageB64, prompt) {
-  const res = await fetch("https://kairos-oabh.onrender.com/screen", {
+  const res = await fetch("http://127.0.0.1:5000/screen", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ image: imageB64, question: prompt })

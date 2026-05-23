@@ -391,7 +391,7 @@
     const formData = new FormData();
     formData.append('file', file);
 
-    fetch('https://kairos-oabh.onrender.com/upload_pdf', {
+    fetch('http://127.0.0.1:5000/upload_pdf', {
       method: 'POST',
       body: formData
     })

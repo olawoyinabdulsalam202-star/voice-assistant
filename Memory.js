@@ -22,7 +22,7 @@
 
 (function () {
 
-  const BACKEND = 'https://kairos-oabh.onrender.com';
+  const BACKEND = 'http://127.0.0.1:5000';
   const USER_ID = 'mr_abdulsalam'; // fixed user — change if multi-user
 
   // ── IN-MEMORY CACHE ──
