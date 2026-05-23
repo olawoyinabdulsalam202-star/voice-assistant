@@ -26,11 +26,14 @@ OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
 
 if not OPENROUTER_API_KEY:
     raise RuntimeError("❌ OPENROUTER_API_KEY is missing! Add it to your .env file.")
+
 app = Flask(__name__)
 CORS(app, origins=[
     "https://kairos-one-snowy.vercel.app",
     "http://127.0.0.1:5500",
-    "http://localhost:5500"
+    "http://127.0.0.1:5501",
+    "http://localhost:5500",
+    "http://localhost:5501"
 ])
 
 HEADERS = {
