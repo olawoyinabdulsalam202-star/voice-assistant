@@ -1,0 +1,635 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>KAIROS — Admin Control</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;700&family=Share+Tech+Mono&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --cyan: #00c8ff;
+      --cyan-dim: rgba(0,200,255,0.4);
+      --cyan-faint: rgba(0,200,255,0.08);
+      --bg: #050e1a;
+      --panel: rgba(5,20,40,0.95);
+      --green: #00ff88;
+      --red: #ff4444;
+      --amber: #ffcc00;
+    }
+
+    body {
+      min-height: 100vh;
+      background: var(--bg);
+      font-family: 'Share Tech Mono', monospace;
+      color: var(--cyan);
+      overflow-x: hidden;
+    }
+
+    /* Background effects */
+    .grid-bg {
+      position: fixed; inset: 0;
+      background-image:
+        linear-gradient(rgba(0,200,255,0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0,200,255,0.03) 1px, transparent 1px);
+      background-size: 40px 40px;
+      pointer-events: none; z-index: 0;
+    }
+    .scanline {
+      position: fixed; inset: 0;
+      background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.06) 2px, rgba(0,0,0,0.06) 4px);
+      pointer-events: none; z-index: 0;
+    }
+    .corner { position: fixed; width: 24px; height: 24px; border-color: rgba(0,200,255,0.4); border-style: solid; z-index: 100; }
+    .corner-tl { top: 12px; left: 12px; border-width: 2px 0 0 2px; }
+    .corner-tr { top: 12px; right: 12px; border-width: 2px 2px 0 0; }
+    .corner-bl { bottom: 12px; left: 12px; border-width: 0 0 2px 2px; }
+    .corner-br { bottom: 12px; right: 12px; border-width: 0 2px 2px 0; }
+
+    /* Layout */
+    .app { display: flex; min-height: 100vh; position: relative; z-index: 1; }
+
+    /* Sidebar */
+    .sidebar {
+      width: 220px; flex-shrink: 0;
+      background: rgba(0,10,25,0.9);
+      border-right: 1px solid rgba(0,200,255,0.12);
+      padding: 1.5rem 0;
+      display: flex; flex-direction: column;
+    }
+
+    .sidebar-logo {
+      display: flex; align-items: center; gap: 10px;
+      padding: 0 1.2rem 1.5rem;
+      border-bottom: 1px solid rgba(0,200,255,0.08);
+      margin-bottom: 1.2rem;
+    }
+
+    .logo-mini {
+      width: 32px; height: 32px;
+      border: 1px solid rgba(0,200,255,0.5);
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-family: 'Orbitron', sans-serif;
+      font-size: 13px; font-weight: 700; color: var(--cyan);
+    }
+
+    .logo-text { font-family: 'Orbitron', sans-serif; font-size: 13px; font-weight: 700; letter-spacing: 4px; }
+    .logo-badge { font-size: 9px; color: rgba(0,200,255,0.4); letter-spacing: 2px; display: block; }
+
+    .nav-item {
+      display: flex; align-items: center; gap: 10px;
+      padding: 10px 1.2rem;
+      font-size: 11px; letter-spacing: 2px;
+      color: rgba(0,200,255,0.4);
+      cursor: pointer; transition: all 0.2s;
+      border-left: 2px solid transparent;
+      text-transform: uppercase;
+    }
+    .nav-item:hover { color: var(--cyan); background: var(--cyan-faint); }
+    .nav-item.active { color: var(--cyan); border-left-color: var(--cyan); background: var(--cyan-faint); }
+    .nav-item i { font-size: 16px; }
+
+    .sidebar-footer {
+      margin-top: auto; padding: 1rem 1.2rem;
+      border-top: 1px solid rgba(0,200,255,0.08);
+    }
+
+    .logout-btn {
+      width: 100%; padding: 8px;
+      background: transparent;
+      border: 1px solid rgba(255,68,68,0.3);
+      border-radius: 3px;
+      color: rgba(255,68,68,0.6);
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 10px; letter-spacing: 2px;
+      cursor: pointer; transition: all 0.2s;
+      text-transform: uppercase;
+    }
+    .logout-btn:hover { border-color: var(--red); color: var(--red); background: rgba(255,68,68,0.06); }
+
+    /* Main content */
+    .main { flex: 1; padding: 1.8rem 2rem; overflow-y: auto; }
+
+    /* Top bar */
+    .topbar {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 2rem;
+    }
+
+    .topbar-title { font-family: 'Orbitron', sans-serif; font-size: 16px; font-weight: 700; letter-spacing: 4px; }
+    .topbar-sub { font-size: 10px; color: rgba(0,200,255,0.4); letter-spacing: 2px; margin-top: 4px; }
+
+    .topbar-right { display: flex; align-items: center; gap: 12px; }
+
+    .status-pill {
+      display: flex; align-items: center; gap: 6px;
+      padding: 5px 10px;
+      border: 1px solid rgba(0,200,255,0.15);
+      border-radius: 20px;
+      font-size: 10px; letter-spacing: 1.5px; color: rgba(0,200,255,0.5);
+    }
+    .status-pill .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); animation: blink 1.4s ease infinite; }
+    @keyframes blink { 0%,100% { opacity:1; } 50% { opacity:0.2; } }
+
+    /* Stats grid */
+    .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; margin-bottom: 2rem; }
+
+    .stat-card {
+      background: var(--panel);
+      border: 1px solid rgba(0,200,255,0.12);
+      border-radius: 4px;
+      padding: 1.2rem;
+      position: relative; overflow: hidden;
+    }
+    .stat-card::before {
+      content: '';
+      position: absolute; top: 0; left: 0; right: 0; height: 1px;
+      background: linear-gradient(90deg, transparent, var(--cyan), transparent);
+      opacity: 0.3;
+    }
+
+    .stat-label { font-size: 9px; letter-spacing: 2px; color: rgba(0,200,255,0.4); text-transform: uppercase; margin-bottom: 8px; }
+    .stat-value { font-family: 'Orbitron', sans-serif; font-size: 26px; font-weight: 700; color: var(--cyan); }
+    .stat-delta { font-size: 9px; color: rgba(0,255,136,0.6); letter-spacing: 1px; margin-top: 4px; }
+    .stat-icon { position: absolute; right: 1rem; top: 50%; transform: translateY(-50%); font-size: 28px; color: rgba(0,200,255,0.08); }
+
+    /* Section */
+    .section { background: var(--panel); border: 1px solid rgba(0,200,255,0.12); border-radius: 4px; margin-bottom: 1.5rem; overflow: hidden; }
+
+    .section-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 1rem 1.2rem;
+      border-bottom: 1px solid rgba(0,200,255,0.08);
+    }
+
+    .section-title { font-family: 'Orbitron', sans-serif; font-size: 11px; letter-spacing: 3px; font-weight: 500; }
+
+    .search-box {
+      display: flex; align-items: center; gap: 8px;
+      background: var(--cyan-faint);
+      border: 1px solid rgba(0,200,255,0.15);
+      border-radius: 3px;
+      padding: 5px 10px;
+    }
+    .search-box input {
+      background: transparent; border: none; outline: none;
+      color: var(--cyan); font-family: 'Share Tech Mono', monospace;
+      font-size: 11px; width: 160px;
+    }
+    .search-box input::placeholder { color: rgba(0,200,255,0.3); }
+    .search-box i { color: rgba(0,200,255,0.4); font-size: 14px; }
+
+    /* Table */
+    .user-table { width: 100%; border-collapse: collapse; }
+
+    .user-table th {
+      text-align: left; font-size: 9px; letter-spacing: 2px;
+      color: rgba(0,200,255,0.35); padding: 8px 1.2rem;
+      border-bottom: 1px solid rgba(0,200,255,0.07);
+      text-transform: uppercase;
+    }
+
+    .user-table td { padding: 12px 1.2rem; border-bottom: 1px solid rgba(0,200,255,0.05); vertical-align: middle; }
+    .user-table tr:last-child td { border-bottom: none; }
+    .user-table tr:hover td { background: rgba(0,200,255,0.03); }
+
+    .user-avatar {
+      width: 30px; height: 30px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 12px; font-weight: 700;
+      border: 1px solid rgba(0,200,255,0.3);
+    }
+
+    .user-email { font-size: 12px; color: #a0e8ff; }
+    .user-joined { font-size: 10px; color: rgba(0,200,255,0.35); letter-spacing: 1px; }
+
+    /* Badges */
+    .badge {
+      display: inline-block; font-size: 9px; letter-spacing: 1.5px;
+      padding: 3px 8px; border-radius: 2px; text-transform: uppercase;
+    }
+    .badge-admin   { background: rgba(255,68,68,0.1);   color: #ff6666; border: 1px solid rgba(255,68,68,0.25); }
+    .badge-pro     { background: rgba(0,255,136,0.1);   color: #00ff88; border: 1px solid rgba(0,255,136,0.25); }
+    .badge-free    { background: rgba(0,200,255,0.05);  color: rgba(0,200,255,0.4); border: 1px solid rgba(0,200,255,0.15); }
+    .badge-override{ background: rgba(255,204,0,0.1);   color: #ffcc00; border: 1px solid rgba(255,204,0,0.25); }
+
+    /* Toggle */
+    .toggle-wrap { display: flex; align-items: center; gap: 8px; }
+    .toggle {
+      position: relative; width: 38px; height: 20px;
+      background: rgba(0,200,255,0.1);
+      border: 1px solid rgba(0,200,255,0.2);
+      border-radius: 10px; cursor: pointer;
+      transition: background 0.25s, border-color 0.25s;
+      flex-shrink: 0;
+    }
+    .toggle.on { background: rgba(0,255,136,0.15); border-color: rgba(0,255,136,0.4); }
+    .toggle-thumb {
+      position: absolute; top: 2px; left: 2px;
+      width: 14px; height: 14px;
+      background: rgba(0,200,255,0.5);
+      border-radius: 50%;
+      transition: transform 0.25s, background 0.25s;
+      pointer-events: none;
+    }
+    .toggle.on .toggle-thumb { transform: translateX(18px); background: var(--green); }
+
+    .toggle-label { font-size: 9px; letter-spacing: 1px; color: rgba(0,200,255,0.4); }
+
+    /* Action btn */
+    .action-btn {
+      background: transparent;
+      border: 1px solid rgba(0,200,255,0.2);
+      border-radius: 3px;
+      color: rgba(0,200,255,0.5);
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 10px; letter-spacing: 1px;
+      padding: 4px 10px; cursor: pointer;
+      transition: all 0.2s;
+    }
+    .action-btn:hover { border-color: var(--cyan); color: var(--cyan); background: var(--cyan-faint); }
+    .action-btn.danger { border-color: rgba(255,68,68,0.2); color: rgba(255,68,68,0.5); }
+    .action-btn.danger:hover { border-color: var(--red); color: var(--red); background: rgba(255,68,68,0.06); }
+
+    /* Toast */
+    .toast {
+      position: fixed; bottom: 24px; right: 24px;
+      background: rgba(5,20,40,0.97);
+      border: 1px solid rgba(0,200,255,0.25);
+      border-radius: 4px;
+      padding: 10px 16px;
+      font-size: 11px; letter-spacing: 1.5px;
+      color: var(--cyan);
+      transform: translateY(80px); opacity: 0;
+      transition: all 0.3s;
+      z-index: 999;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .toast.show { transform: translateY(0); opacity: 1; }
+    .toast.success { border-color: rgba(0,255,136,0.3); color: var(--green); }
+    .toast.error   { border-color: rgba(255,68,68,0.3); color: var(--red); }
+
+    /* Loading */
+    .loading-row td { text-align: center; padding: 2rem; color: rgba(0,200,255,0.3); font-size: 11px; letter-spacing: 2px; }
+
+    @media (max-width: 768px) {
+      .sidebar { width: 52px; }
+      .sidebar .nav-item span, .sidebar .logo-text, .sidebar .logo-badge, .sidebar .logout-btn { display: none; }
+      .sidebar-logo { padding: 0 0.6rem 1rem; justify-content: center; }
+      .stats-grid { grid-template-columns: repeat(2,1fr); }
+      .main { padding: 1rem; }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="grid-bg"></div>
+  <div class="scanline"></div>
+  <div class="corner corner-tl"></div>
+  <div class="corner corner-tr"></div>
+  <div class="corner corner-bl"></div>
+  <div class="corner corner-br"></div>
+
+  <div class="app">
+
+    <!-- ── SIDEBAR ── -->
+    <aside class="sidebar">
+      <div class="sidebar-logo">
+        <div class="logo-mini">K</div>
+        <div>
+          <div class="logo-text">KAIROS</div>
+          <span class="logo-badge">ADMIN CORE</span>
+        </div>
+      </div>
+
+      <nav>
+        <div class="nav-item active" onclick="showSection('users')">
+          <i class="ti ti-users"></i><span>Users</span>
+        </div>
+        <div class="nav-item" onclick="showSection('stats')">
+          <i class="ti ti-chart-bar"></i><span>Analytics</span>
+        </div>
+        <div class="nav-item" onclick="showSection('settings')">
+          <i class="ti ti-settings"></i><span>Settings</span>
+        </div>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div style="font-size:9px;color:rgba(0,200,255,0.3);letter-spacing:1.5px;margin-bottom:8px;" id="admin-email-display">—</div>
+        <button class="logout-btn" onclick="logout()"><i class="ti ti-logout" style="margin-right:5px;"></i>Logout</button>
+      </div>
+    </aside>
+
+    <!-- ── MAIN ── -->
+    <main class="main">
+
+      <!-- Top bar -->
+      <div class="topbar">
+        <div>
+          <div class="topbar-title">CONTROL CENTER</div>
+          <div class="topbar-sub">KAIROS ADMIN — RESTRICTED ACCESS</div>
+        </div>
+        <div class="topbar-right">
+          <div class="status-pill"><div class="dot"></div> SYSTEM ONLINE</div>
+        </div>
+      </div>
+
+      <!-- Stats -->
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-label">Total Users</div>
+          <div class="stat-value" id="stat-total">—</div>
+          <div class="stat-delta">ALL REGISTERED</div>
+          <i class="ti ti-users stat-icon"></i>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Paying</div>
+          <div class="stat-value" id="stat-paying">—</div>
+          <div class="stat-delta">ACTIVE SUBS</div>
+          <i class="ti ti-credit-card stat-icon"></i>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Free Override</div>
+          <div class="stat-value" id="stat-override">—</div>
+          <div class="stat-delta">GRANTED BY YOU</div>
+          <i class="ti ti-shield-check stat-icon"></i>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Free Tier</div>
+          <div class="stat-value" id="stat-free">—</div>
+          <div class="stat-delta">STANDARD USERS</div>
+          <i class="ti ti-user stat-icon"></i>
+        </div>
+      </div>
+
+      <!-- Users section -->
+      <div class="section" id="section-users">
+        <div class="section-header">
+          <div class="section-title">USER REGISTRY</div>
+          <div class="search-box">
+            <i class="ti ti-search"></i>
+            <input type="text" id="search-input" placeholder="search by email..." oninput="filterUsers(this.value)" />
+          </div>
+        </div>
+
+        <table class="user-table">
+          <thead>
+            <tr>
+              <th></th>
+              <th>User</th>
+              <th>Plan</th>
+              <th>Pro Override</th>
+              <th>Joined</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="user-tbody">
+            <tr class="loading-row"><td colspan="6">LOADING USER DATA...</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Analytics placeholder -->
+      <div class="section" id="section-stats" style="display:none;">
+        <div class="section-header"><div class="section-title">ANALYTICS</div></div>
+        <div style="padding:2rem;text-align:center;color:rgba(0,200,255,0.3);font-size:11px;letter-spacing:2px;">CONNECT YOUR DATABASE TO SEE ANALYTICS</div>
+      </div>
+
+      <!-- Settings placeholder -->
+      <div class="section" id="section-settings" style="display:none;">
+        <div class="section-header"><div class="section-title">SYSTEM SETTINGS</div></div>
+        <div style="padding:2rem;text-align:center;color:rgba(0,200,255,0.3);font-size:11px;letter-spacing:2px;">SETTINGS PANEL — COMING SOON</div>
+      </div>
+
+    </main>
+  </div>
+
+  <!-- Toast -->
+  <div class="toast" id="toast"></div>
+
+  <script>
+    // ─────────────────────────────────────────────────
+    // CONFIG
+    // ─────────────────────────────────────────────────
+    const API = '';  // same origin. Change to 'http://localhost:5000' if needed
+
+    // ─────────────────────────────────────────────────
+    // GUARD — kick non-admins immediately
+    // ─────────────────────────────────────────────────
+    const token    = localStorage.getItem('kairos_token');
+    const role     = localStorage.getItem('kairos_role');
+    const adminEmail = localStorage.getItem('kairos_email');
+
+    if (!token || role !== 'admin') {
+      window.location.href = 'auth.htm';
+    }
+
+    document.getElementById('admin-email-display').textContent = adminEmail || '';
+
+    // ─────────────────────────────────────────────────
+    // TOAST
+    // ─────────────────────────────────────────────────
+    function toast(msg, type = 'success') {
+      const el = document.getElementById('toast');
+      el.textContent = msg;
+      el.className = `toast ${type} show`;
+      setTimeout(() => el.classList.remove('show'), 3000);
+    }
+
+    // ─────────────────────────────────────────────────
+    // NAVIGATION
+    // ─────────────────────────────────────────────────
+    function showSection(name) {
+      ['users','stats','settings'].forEach(s => {
+        document.getElementById(`section-${s}`).style.display = s === name ? '' : 'none';
+      });
+      document.querySelectorAll('.nav-item').forEach((el, i) => {
+        el.classList.toggle('active', ['users','stats','settings'][i] === name);
+      });
+    }
+
+    // ─────────────────────────────────────────────────
+    // LOAD USERS
+    // Calls GET /api/admin/users on your Flask backend
+    // Returns: [{ id, email, role, plan_tier, is_pro_override, created_at }]
+    // ─────────────────────────────────────────────────
+    let allUsers = [];
+
+    async function loadUsers() {
+      try {
+        const res = await fetch(`${API}/api/admin/users`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+
+        if (res.status === 401 || res.status === 403) {
+          window.location.href = 'auth.htm';
+          return;
+        }
+
+        allUsers = await res.json();
+        renderUsers(allUsers);
+        updateStats(allUsers);
+
+      } catch (err) {
+        document.getElementById('user-tbody').innerHTML =
+          `<tr class="loading-row"><td colspan="6" style="color:rgba(255,68,68,0.5);">CANNOT REACH SERVER — IS FLASK RUNNING?</td></tr>`;
+      }
+    }
+
+    // ─────────────────────────────────────────────────
+    // RENDER USERS
+    // ─────────────────────────────────────────────────
+    const COLORS = ['#00c8ff','#00ff88','#ffcc00','#ff6ec7','#a78bfa'];
+
+    function renderUsers(users) {
+      if (!users.length) {
+        document.getElementById('user-tbody').innerHTML =
+          `<tr class="loading-row"><td colspan="6">NO USERS FOUND</td></tr>`;
+        return;
+      }
+
+      document.getElementById('user-tbody').innerHTML = users.map((u, i) => {
+        const initial = (u.email || '?')[0].toUpperCase();
+        const color   = COLORS[i % COLORS.length];
+        const joined  = u.created_at ? new Date(u.created_at).toLocaleDateString() : '—';
+
+        const planBadge = u.role === 'admin'
+          ? `<span class="badge badge-admin">admin</span>`
+          : u.plan_tier === 'pro'
+            ? `<span class="badge badge-pro">paying pro</span>`
+            : u.is_pro_override
+              ? `<span class="badge badge-override">override</span>`
+              : `<span class="badge badge-free">free</span>`;
+
+        const isOn = u.is_pro_override ? 'on' : '';
+
+        return `
+          <tr id="row-${u.id}">
+            <td><div class="user-avatar" style="color:${color};border-color:${color}33;">${initial}</div></td>
+            <td>
+              <div class="user-email">${u.email}</div>
+              <div class="user-joined">ID: ${u.id?.slice(0,8)}...</div>
+            </td>
+            <td>${planBadge}</td>
+            <td>
+              <div class="toggle-wrap">
+                <div class="toggle ${isOn}" id="tog-${u.id}" onclick="toggleOverride('${u.id}', this)">
+                  <div class="toggle-thumb"></div>
+                </div>
+                <span class="toggle-label" id="tog-label-${u.id}">${u.is_pro_override ? 'GRANTED' : 'OFF'}</span>
+              </div>
+            </td>
+            <td><span style="font-size:10px;color:rgba(0,200,255,0.4);">${joined}</span></td>
+            <td>
+              <button class="action-btn danger" onclick="removeUser('${u.id}', '${u.email}')">
+                <i class="ti ti-trash" style="font-size:12px;"></i>
+              </button>
+            </td>
+          </tr>`;
+      }).join('');
+    }
+
+    // ─────────────────────────────────────────────────
+    // STATS
+    // ─────────────────────────────────────────────────
+    function updateStats(users) {
+      document.getElementById('stat-total').textContent    = users.length;
+      document.getElementById('stat-paying').textContent   = users.filter(u => u.plan_tier === 'pro' && !u.is_pro_override).length;
+      document.getElementById('stat-override').textContent = users.filter(u => u.is_pro_override).length;
+      document.getElementById('stat-free').textContent     = users.filter(u => u.plan_tier === 'free' && !u.is_pro_override).length;
+    }
+
+    // ─────────────────────────────────────────────────
+    // SEARCH
+    // ─────────────────────────────────────────────────
+    function filterUsers(q) {
+      const filtered = allUsers.filter(u => u.email.toLowerCase().includes(q.toLowerCase()));
+      renderUsers(filtered);
+    }
+
+    // ─────────────────────────────────────────────────
+    // TOGGLE PRO OVERRIDE
+    // Calls PATCH /api/admin/users/<id>/override
+    // Body: { is_pro_override: true/false }
+    // ─────────────────────────────────────────────────
+    async function toggleOverride(userId, el) {
+      const isOn = el.classList.contains('on');
+      const newVal = !isOn;
+
+      // Optimistic UI
+      el.classList.toggle('on', newVal);
+      document.getElementById(`tog-label-${userId}`).textContent = newVal ? 'GRANTED' : 'OFF';
+
+      try {
+        const res = await fetch(`${API}/api/admin/users/${userId}/override`, {
+          method: 'PATCH',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ is_pro_override: newVal })
+        });
+
+        if (!res.ok) throw new Error();
+
+        // Update local data
+        const user = allUsers.find(u => u.id === userId);
+        if (user) user.is_pro_override = newVal;
+        updateStats(allUsers);
+
+        toast(newVal ? '✓ PRO OVERRIDE GRANTED' : '✓ OVERRIDE REMOVED', 'success');
+
+      } catch {
+        // Revert on failure
+        el.classList.toggle('on', isOn);
+        document.getElementById(`tog-label-${userId}`).textContent = isOn ? 'GRANTED' : 'OFF';
+        toast('ERROR — COULD NOT UPDATE USER', 'error');
+      }
+    }
+
+    // ─────────────────────────────────────────────────
+    // REMOVE USER  (optional — wire to your backend)
+    // Calls DELETE /api/admin/users/<id>
+    // ─────────────────────────────────────────────────
+    async function removeUser(userId, email) {
+      if (!confirm(`Remove ${email}? This cannot be undone.`)) return;
+
+      try {
+        const res = await fetch(`${API}/api/admin/users/${userId}`, {
+          method: 'DELETE',
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+
+        if (!res.ok) throw new Error();
+
+        allUsers = allUsers.filter(u => u.id !== userId);
+        renderUsers(allUsers);
+        updateStats(allUsers);
+        toast('✓ USER REMOVED', 'success');
+
+      } catch {
+        toast('ERROR — COULD NOT REMOVE USER', 'error');
+      }
+    }
+
+    // ─────────────────────────────────────────────────
+    // LOGOUT
+    // ─────────────────────────────────────────────────
+    function logout() {
+      localStorage.removeItem('kairos_token');
+      localStorage.removeItem('kairos_role');
+      localStorage.removeItem('kairos_email');
+      window.location.href = 'auth.htm';
+    }
+
+    // ─────────────────────────────────────────────────
+    // INIT
+    // ─────────────────────────────────────────────────
+    loadUsers();
+  </script>
+</body>
+</html>
