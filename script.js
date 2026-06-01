@@ -285,7 +285,7 @@ function speak(text, onDone) {
 //  DEVELOPER CREDITS
 // ════════════════════════════════════════
 const DEV_KEYWORDS = ['who made you', 'who built you', 'who developed you', 'who created you', 'who is your developer', 'who designed you', 'who programmed you', 'who are you built by', 'your creator', 'your developer', 'who owns you', 'who is your owner', 'who is your maker', 'who is your founder'];
-const DEV_RESPONSE = `I was built by Mr Alameen — a web developer and AI developer based in Lagos, Nigeria, operating under the brand Elite Dev. He specialises in premium frontend and backend experiences, AI-powered interfaces, and JavaScript and Python development.`;
+const DEV_RESPONSE = `I was built by Mr Abdulsalam — a web developer and AI developer based in Lagos, Nigeria, operating under the brand Elite Dev. He specialises in premium frontend and backend experiences, AI-powered interfaces, and JavaScript and Python development.`;
 function checkDevQuestion(text) { return DEV_KEYWORDS.some(kw => text.toLowerCase().includes(kw)); }
 
 // ════════════════════════════════════════

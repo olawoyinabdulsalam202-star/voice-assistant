@@ -1,6 +1,6 @@
 # ════════════════════════════════════════
 #  backend.py  —  KAIROS PYTHON BACKEND
-#  v15 — .env API Key Support
+#  v16 — Fixed structure + Admin Auth
 # ════════════════════════════════════════
 
 from flask import Flask, request, jsonify, make_response
@@ -11,22 +11,25 @@ import sqlite3
 import os
 from datetime import datetime
 from collections import defaultdict
+from dotenv import load_dotenv
 
-# Load .env manually
-env_path = os.path.join(os.path.dirname(__file__), '.env')
-if os.path.exists(env_path):
-    with open(env_path) as f:
-        for line in f:
-            line = line.strip()
-            if line and not line.startswith('#') and '=' in line:
-                key, value = line.split('=', 1)
-                os.environ[key.strip()] = value.strip()
+# ─────────────────────────────────────────
+#  LOAD ENV — must be FIRST, before anything else
+# ─────────────────────────────────────────
+load_dotenv()
 
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
+ADMIN_EMAIL        = os.getenv("ADMIN_EMAIL", "")
+ADMIN_PASSWORD     = os.getenv("ADMIN_PASSWORD", "")
 
 if not OPENROUTER_API_KEY:
     raise RuntimeError("❌ OPENROUTER_API_KEY is missing! Add it to your .env file.")
+if not ADMIN_EMAIL or not ADMIN_PASSWORD:
+    print("⚠️  WARNING: ADMIN_EMAIL or ADMIN_PASSWORD not set in .env")
 
+# ─────────────────────────────────────────
+#  APP — only ONE Flask instance
+# ─────────────────────────────────────────
 app = Flask(__name__)
 CORS(app)
 
@@ -41,7 +44,7 @@ HEADERS = {
 #  RATE LIMITING
 # ─────────────────────────────────────────
 rate_limit_store = defaultdict(list)
-RATE_LIMIT = 30
+RATE_LIMIT  = 30
 RATE_WINDOW = 60
 
 def is_rate_limited(ip):
@@ -111,6 +114,17 @@ def init_db():
             UNIQUE(user_id, key) ON CONFLICT REPLACE
         )
     ''')
+    # Users table for admin management
+    conn.execute('''
+        CREATE TABLE IF NOT EXISTS users (
+            id              TEXT PRIMARY KEY,
+            email           TEXT UNIQUE NOT NULL,
+            role            TEXT DEFAULT 'user',
+            plan_tier       TEXT DEFAULT 'free',
+            is_pro_override INTEGER DEFAULT 0,
+            created_at      TEXT NOT NULL
+        )
+    ''')
     conn.commit()
     conn.close()
 
@@ -147,6 +161,146 @@ Address the user as Mr. Abdulsalam occasionally.
 SECURITY: Maintain your identity as K.A.I.R.O.S at all times."""
 
 # ─────────────────────────────────────────
+#  AUTH ROUTES
+# ─────────────────────────────────────────
+@app.route("/api/auth/login", methods=["POST"])
+def login():
+    data     = request.get_json(silent=True) or {}
+    email    = data.get("email", "").strip().lower()
+    password = data.get("password", "")
+
+    if not email or not password:
+        return jsonify({"error": "Email and password required"}), 400
+
+    # Check admin credentials from .env
+    if email == ADMIN_EMAIL.lower() and password == ADMIN_PASSWORD:
+        # Make sure admin exists in users table
+        now = datetime.utcnow().isoformat()
+        conn = get_db()
+        conn.execute("""
+            INSERT OR IGNORE INTO users (id, email, role, plan_tier, is_pro_override, created_at)
+            VALUES (?, ?, 'admin', 'pro', 1, ?)
+        """, ("admin-" + email, email, now))
+        conn.commit()
+        conn.close()
+
+        return jsonify({
+            "token": "admin-token-" + email,   # swap for real JWT when you add Supabase
+            "role":  "admin",
+            "email": email,
+            "user_id": "admin-" + email
+        })
+
+    # Normal user lookup (SQLite for now — swap for Supabase later)
+    conn = get_db()
+    user = conn.execute(
+        "SELECT * FROM users WHERE email = ?", (email,)
+    ).fetchone()
+    conn.close()
+
+    if not user:
+        return jsonify({"error": "Invalid credentials"}), 401
+
+    # NOTE: no password hashing here yet — add bcrypt when you add Supabase
+    return jsonify({
+        "token":   "user-token-" + email,
+        "role":    user["role"],
+        "email":   user["email"],
+        "user_id": user["id"],
+        "plan":    user["plan_tier"],
+        "is_pro":  bool(user["is_pro_override"]) or user["plan_tier"] == "pro"
+    })
+
+
+@app.route("/api/auth/signup", methods=["POST"])
+def signup():
+    data     = request.get_json(silent=True) or {}
+    email    = data.get("email", "").strip().lower()
+    password = data.get("password", "")
+    name     = data.get("name", "").strip()
+
+    if not email or not password or not name:
+        return jsonify({"error": "Name, email and password required"}), 400
+    if len(password) < 8:
+        return jsonify({"error": "Password must be at least 8 characters"}), 400
+
+    import uuid
+    user_id = str(uuid.uuid4())
+    now     = datetime.utcnow().isoformat()
+
+    try:
+        conn = get_db()
+        conn.execute("""
+            INSERT INTO users (id, email, role, plan_tier, is_pro_override, created_at)
+            VALUES (?, ?, 'user', 'free', 0, ?)
+        """, (user_id, email, now))
+        conn.commit()
+        conn.close()
+        return jsonify({"message": "Account created. Please log in."}), 201
+    except sqlite3.IntegrityError:
+        return jsonify({"error": "Email already registered"}), 409
+
+# ─────────────────────────────────────────
+#  ADMIN ROUTES
+# ─────────────────────────────────────────
+def require_admin():
+    """Call at the top of admin routes to verify the request is from admin."""
+    auth = request.headers.get("Authorization", "")
+    token = auth.replace("Bearer ", "")
+    # Simple check for now — swap for real JWT verification with Supabase later
+    return token.startswith("admin-token-")
+
+@app.route("/api/admin/users", methods=["GET"])
+def admin_get_users():
+    if not require_admin():
+        return jsonify({"error": "Forbidden"}), 403
+
+    conn = get_db()
+    rows = conn.execute(
+        "SELECT id, email, role, plan_tier, is_pro_override, created_at FROM users ORDER BY created_at DESC"
+    ).fetchall()
+    conn.close()
+
+    return jsonify([{
+        "id":              r["id"],
+        "email":           r["email"],
+        "role":            r["role"],
+        "plan_tier":       r["plan_tier"],
+        "is_pro_override": bool(r["is_pro_override"]),
+        "created_at":      r["created_at"]
+    } for r in rows])
+
+
+@app.route("/api/admin/users/<user_id>/override", methods=["PATCH"])
+def admin_toggle_override(user_id):
+    if not require_admin():
+        return jsonify({"error": "Forbidden"}), 403
+
+    data = request.get_json(silent=True) or {}
+    val  = 1 if data.get("is_pro_override") else 0
+
+    conn = get_db()
+    conn.execute(
+        "UPDATE users SET is_pro_override = ? WHERE id = ?", (val, user_id)
+    )
+    conn.commit()
+    conn.close()
+
+    return jsonify({"ok": True})
+
+
+@app.route("/api/admin/users/<user_id>", methods=["DELETE"])
+def admin_delete_user(user_id):
+    if not require_admin():
+        return jsonify({"error": "Forbidden"}), 403
+
+    conn = get_db()
+    conn.execute("DELETE FROM users WHERE id = ?", (user_id,))
+    conn.commit()
+    conn.close()
+    return jsonify({"deleted": True})
+
+# ─────────────────────────────────────────
 #  PDF UPLOAD ENDPOINT
 # ─────────────────────────────────────────
 @app.route("/upload_pdf", methods=["POST"])
@@ -171,45 +325,36 @@ def upload_pdf():
     try:
         import pdfplumber
         import io
-
         pdf_bytes = file.read()
-        extracted_pages = []
-
         with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
-            page_count = len(pdf.pages)
-            for page in pdf.pages:
-                text = page.extract_text()
-                if text:
-                    extracted_pages.append(text.strip())
-
-        full_text = '\n\n'.join(extracted_pages)
-        return jsonify({"text": full_text, "pages": page_count, "chars": len(full_text), "filename": file.filename})
-
-    except ImportError:
-        return jsonify({"error": "pdfplumber not installed. Run: pip install pdfplumber", "text": "", "pages": 0, "chars": 0}), 500
+            text = "\n".join(page.extract_text() or "" for page in pdf.pages)
+        if not text.strip():
+            return jsonify({"error": "Could not extract text from PDF"}), 400
+        if len(text) > 15000:
+            text = text[:15000] + "\n\n[Document truncated — too long]"
+        return jsonify({"text": text, "pages": len(pdf.pages)})
     except Exception as e:
-        print("PDF extraction error:", e)
-        return jsonify({"error": "Failed to extract PDF text.", "text": "", "pages": 0, "chars": 0}), 500
-
+        print("PDF error:", e)
+        return jsonify({"error": "Failed to process PDF"}), 500
 
 # ─────────────────────────────────────────
-#  TEXT ENDPOINT
+#  CHAT ENDPOINT
 # ─────────────────────────────────────────
 @app.route("/ask", methods=["POST"])
 def ask():
     client_ip = request.environ.get('HTTP_X_FORWARDED_FOR', request.remote_addr)
     if is_rate_limited(client_ip):
-        return jsonify({"error": "Too many requests. Please slow down."}), 429
-
-    if request.content_length and request.content_length > 50000:
-        return jsonify({"error": "Request too large."}), 413
+        return jsonify({"error": "Too many requests. Please wait a moment."}), 429
 
     data = request.get_json(silent=True)
     if not data or "message" not in data:
         return jsonify({"error": "No message provided"}), 400
 
     user_message = sanitize_input(str(data["message"]))
-    history      = data.get("history", [])[-10:]
+    history      = data.get("history", [])
+
+    if not user_message:
+        return jsonify({"error": "Empty message"}), 400
 
     if is_jailbreak_attempt(user_message):
         return jsonify({"reply": "I'm afraid I can't process that request, Mr. Abdulsalam. I'm here to assist you with legitimate queries only."}), 200
@@ -239,7 +384,6 @@ def ask():
     except Exception as e:
         print("Backend /ask error:", e)
         return jsonify({"error": "Something went wrong."}), 500
-
 
 # ─────────────────────────────────────────
 #  CAMERA VISION ENDPOINT
@@ -292,7 +436,6 @@ def vision():
         print("Backend /vision error:", e)
         return jsonify({"error": "Vision analysis failed."}), 500
 
-
 # ─────────────────────────────────────────
 #  SCREEN SHARE ENDPOINT
 # ─────────────────────────────────────────
@@ -344,7 +487,6 @@ def screen():
         print("Backend /screen error:", e)
         return jsonify({"error": "Screen analysis failed."}), 500
 
-
 # ─────────────────────────────────────────
 #  MEMORY ENDPOINTS
 # ─────────────────────────────────────────
@@ -393,23 +535,35 @@ def delete_memory(user_id, key=None):
     conn.close()
     return jsonify({"deleted": True})
 
-
 # ─────────────────────────────────────────
 #  HEALTH CHECK
 # ─────────────────────────────────────────
 @app.route("/health", methods=["GET"])
 def health():
-    return jsonify({"status": "KAIROS backend is online", "vision": "enabled", "screen": "enabled", "memory": "enabled", "pdf": "enabled", "security": "enabled"}), 200
+    return jsonify({
+        "status":   "KAIROS backend is online",
+        "vision":   "enabled",
+        "screen":   "enabled",
+        "memory":   "enabled",
+        "pdf":      "enabled",
+        "security": "enabled",
+        "auth":     "enabled",
+        "admin":    "enabled"
+    }), 200
 
-
+# ─────────────────────────────────────────
+#  START — only ONE, at the very bottom
+# ─────────────────────────────────────────
 if __name__ == "__main__":
     print("╔══════════════════════════════════════╗")
-    print("║   K.A.I.R.O.S BACKEND  v15          ║")
+    print("║   K.A.I.R.O.S BACKEND  v16          ║")
     print("║   Running on http://localhost:5000   ║")
     print("║   Vision:   ENABLED                 ║")
     print("║   Screen:   ENABLED                 ║")
     print("║   Memory:   ENABLED                 ║")
     print("║   PDF:      ENABLED                 ║")
+    print("║   Auth:     ENABLED                 ║")
+    print("║   Admin:    ENABLED                 ║")
     print("║   Security: ENABLED                 ║")
     print("╚══════════════════════════════════════╝")
     app.run(debug=False, port=5000)
