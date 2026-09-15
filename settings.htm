@@ -169,13 +169,14 @@
        control id and handler is unchanged.
        ═══════════════════════════════════════════════ */
     .set-shell {
-      max-width: none; margin: 0 auto;
+      width: 100%; max-width: none; margin: 0 auto;
       display: grid; grid-template-columns: 264px 1fr; gap: 1.25rem;
-      align-items: start;
+      align-items: stretch;
     }
     .set-rail {
       position: sticky; top: 0;
       display: flex; flex-direction: column; gap: 1rem;
+      min-height: 100%;
       background: var(--glass-fill);
       border: 1px solid var(--glass-border);
       border-radius: var(--glass-radius-lg);
@@ -332,12 +333,13 @@
 
       .set-shell {
         display: flex; flex-direction: column; gap: 1rem;
-        max-width: 560px;
+        width: 100%; max-width: none;
       }
 
       /* rail is now the top "menu" — drop its own card chrome */
       .set-rail {
         position: static;
+        width: 100%; min-width: 0;
         background: none; border: none; box-shadow: none;
         -webkit-backdrop-filter: none; backdrop-filter: none;
         padding: 0; gap: 0.9rem;
@@ -388,9 +390,12 @@
       .set-rail__foot { margin-top: 0; padding-top: 0; border-top: none; }
       .set-rail__foot .btn { width: 100%; }
 
-      /* the detail pane follows the menu; its header Back is redundant now
-         that Back sits at the very top, so hide just that one control */
-      .set-pane__head .back-btn { display: none; }
+      /* On phones, the menu and detail pane are separate drill-down views. */
+      .set-shell:not(.mobile-detail) .set-pane { display: none; }
+      .set-shell.mobile-detail .set-rail { display: none; }
+      .set-shell.mobile-detail .set-pane { display: flex; }
+      .set-pane { width: 100%; min-width: 0; }
+      .set-shell.mobile-detail .set-pane__head .back-btn { display: inline-flex; }
     }
   </style>
 </head>
@@ -482,6 +487,23 @@
           <span class="label">Pitch <span id="pitchVal" style="color:var(--cyan);"></span></span>
           <input type="range" id="pitchSlider" class="kx-range" min="0.1" max="2.0" step="0.05">
         </div>
+        <div class="set-field">
+          <span class="label">Speech recognition accent / region</span>
+          <select id="speechLangSelect" style="width:100%;font-size:0.75rem;">
+            <option value="">Auto (match my device)</option>
+            <option value="en-NG">English (Nigeria)</option>
+            <option value="en-GH">English (Ghana)</option>
+            <option value="en-KE">English (Kenya)</option>
+            <option value="en-ZA">English (South Africa)</option>
+            <option value="en-US">English (United States)</option>
+            <option value="en-GB">English (United Kingdom)</option>
+            <option value="en-IN">English (India)</option>
+            <option value="en-AU">English (Australia)</option>
+            <option value="en-CA">English (Canada)</option>
+            <option value="en-IE">English (Ireland)</option>
+          </select>
+          <span class="label">Sets the accent model used to transcribe your voice into text. Pick your region for the most accurate results (e.g. English (Nigeria)). "Auto" follows your device language.</span>
+        </div>
         <div class="actions" style="margin-top:0.5rem;">
           <button class="btn btn-primary" onclick="testVoice()"><svg class="ic" aria-hidden="true"><use href="/icons.svg#ic-play"/></svg>TEST VOICE</button>
           <button class="btn" style="border-color:var(--glass-border);color:var(--text-secondary);" onclick="resetVoiceSettings()"><svg class="ic" aria-hidden="true"><use href="/icons.svg#ic-refresh"/></svg>RESET TO DEFAULT</button>
@@ -522,7 +544,7 @@
           </div>
           <div class="plan-card" id="planPro" onclick="switchPlan('pro')">
             <div class="plan-name">PRO</div>
-            <div class="plan-price">₦4,500 / month</div>
+            <div class="plan-price" id="proPlanPrice">&#8358;4,500 / month</div>
             <div class="plan-status" id="proStatus">UPGRADE</div>
           </div>
         </div>
@@ -830,6 +852,16 @@
   })();
 
   function goBack() {
+    const shell = document.querySelector('.set-shell');
+    if (shell && shell.classList.contains('mobile-detail')) {
+      shell.classList.remove('mobile-detail');
+      document.querySelectorAll('.set-tab').forEach(t => { t.hidden = true; });
+      document.querySelectorAll('.set-nav__item').forEach(b => b.classList.remove('active'));
+      if (history.state && history.state.settingsCategory) history.back();
+      else history.replaceState({ settingsMain: true }, '', location.href);
+      try { window.scrollTo({ top: 0, behavior: 'smooth' }); } catch (e) { window.scrollTo(0, 0); }
+      return;
+    }
     if (window.parent !== window && new URLSearchParams(location.search).get('embedded') === '1') {
       window.parent.postMessage('kairos:close-settings', location.origin);
       return;
@@ -837,7 +869,7 @@
     // Standalone settings: Back always returns to the app.
     // (Deliberately NOT history.back(): after visiting a legal page the previous
     //  history entry is that page, so history.back() ping-pongs settings <-> legal.)
-    window.location.href = '/app?skip_intro=1';
+    window.location.href = '/app';
   }
 
   function showToast(msg) {
@@ -846,7 +878,25 @@
     setTimeout(() => t.classList.remove('show'), 3000);
   }
 
+  // ── PRICING DISPLAY (single source of truth) ──
+  // The price shown here is read from /api/config/public (pro_price_ngn), which
+  // the backend derives from PRO_PLAN_PRICE_NGN — the SAME value the Upgrade
+  // charge uses in startPaystack(). Reading it here means the displayed price
+  // can never drift from what the user is actually billed: change the price in
+  // one place (the backend) and every page updates. The markup keeps a static
+  // fallback for the pre-fetch instant / if the config call fails.
+  async function loadPricingDisplay() {
+    try {
+      const config = await (await fetch('/api/config/public')).json();
+      const el = document.getElementById('proPlanPrice');
+      if (el && config.pro_price_ngn != null) {
+        el.textContent = '₦' + Number(config.pro_price_ngn).toLocaleString('en-US') + ' / month';
+      }
+    } catch (e) { /* keep the static fallback already in the markup */ }
+  }
+
   document.addEventListener('DOMContentLoaded', loadProfile);
+  document.addEventListener('DOMContentLoaded', loadPricingDisplay);
 
   // ════════════════════════════════════════
   //  VOICE & DISPLAY — shares kairos_settings
@@ -855,7 +905,7 @@
   // ════════════════════════════════════════
   const VS_KEY = 'kairos_settings';
   const VS_DEFAULTS = {
-    theme: 'cyan', voiceName: '', voiceRate: 1.05, voicePitch: 0.85,
+    theme: 'cyan', voiceName: '', voiceRate: 1.05, voicePitch: 0.85, speechLang: '',
     orbStandbyColor: '#00d4ff', orbListenColor: '#00ff8c', orbThinkColor: '#ffb300',
     orbSpeakColor: '#ffffff', orbErrorColor: '#ff4444', ringColor: '#00d4ff',
   };
@@ -911,6 +961,18 @@
     pitchEl.oninput = () => { vs.voicePitch = parseFloat(pitchEl.value); document.getElementById('pitchVal').textContent = vs.voicePitch.toFixed(2); vsSave(); };
   }
 
+  // ── SPEECH RECOGNITION ACCENT / REGION ──
+  // Persists the chosen BCP-47 locale into the shared kairos_settings object
+  // (key: speechLang). script.js's kairosSpeechLang() reads it when it builds
+  // each SpeechRecognition instance, so the app transcribes in the selected
+  // accent. Empty value = "Auto", i.e. follow the device language.
+  function initSpeechLang() {
+    const sel = document.getElementById('speechLangSelect');
+    if (!sel) return;
+    sel.value = vs.speechLang || '';
+    sel.onchange = () => { vs.speechLang = sel.value; vsSave(); };
+  }
+
   function initRingColor() {
     const input = document.getElementById('ringColorInput');
     input.value = vs.ringColor;
@@ -961,6 +1023,7 @@
     initSliders();
     initRingColor();
     initOrbColors();
+    initSpeechLang();
     populateVoices();
     showToast('Voice & display settings reset');
   }
@@ -969,6 +1032,7 @@
   initSliders();
   initRingColor();
   initOrbColors();
+  initSpeechLang();
 </script>
 
 <script>
@@ -999,8 +1063,35 @@
         if (t) t.textContent = meta[0];
         if (s) s.textContent = meta[1];
       }
+      const shell = document.querySelector('.set-shell');
+      if (shell && window.matchMedia('(max-width: 820px)').matches) {
+        if (!shell.classList.contains('mobile-detail')) {
+          history.pushState({ settingsCategory: name }, '', `#${name}`);
+        } else {
+          history.replaceState({ settingsCategory: name }, '', `#${name}`);
+        }
+        shell.classList.add('mobile-detail');
+      }
       try { window.scrollTo({ top: 0, behavior: 'smooth' }); } catch (e) { window.scrollTo(0, 0); }
     };
+
+    window.addEventListener('popstate', () => {
+      const shell = document.querySelector('.set-shell');
+      if (!shell || !window.matchMedia('(max-width: 820px)').matches) return;
+      if (location.hash && TITLES[location.hash.slice(1)]) {
+        window.showSettingsTab(location.hash.slice(1));
+      } else {
+        shell.classList.remove('mobile-detail');
+        document.querySelectorAll('.set-tab').forEach(t => { t.hidden = true; });
+        document.querySelectorAll('.set-nav__item').forEach(b => b.classList.remove('active'));
+      }
+    });
+
+    if (window.matchMedia('(max-width: 820px)').matches) {
+      history.replaceState({ settingsMain: true }, '', location.pathname + location.search);
+      document.querySelectorAll('.set-tab').forEach(t => { t.hidden = true; });
+      document.querySelectorAll('.set-nav__item').forEach(b => b.classList.remove('active'));
+    }
 
     // Accent fill for the WebKit range track (Firefox fills natively).
     function paintRange(el) {

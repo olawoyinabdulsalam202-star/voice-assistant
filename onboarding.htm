@@ -369,7 +369,7 @@
           </ul>
 
           <div class="actions">
-            <button class="btn-skip" onclick="goStep(1)">Skip</button>
+            <button class="btn-skip" onclick="skipOnboarding(this)">Skip</button>
             <button class="btn-next" onclick="goStep(1)">Next →</button>
           </div>
         </div>
@@ -403,7 +403,7 @@
               <div class="pdesc">Limited messages per day</div>
             </div>
             <div class="plan-card" data-plan="pro">
-              <div class="pname">Pro — prepaid, min. $5</div>
+              <div class="pname">Pro &#8212; prepaid, min. <span id="onboardProPrice">&#8358;4,500</span></div>
               <div class="pdesc">Unlimited messages, priority access</div>
             </div>
             <div class="plan-card" data-plan="organisation">
@@ -466,6 +466,23 @@
       }
     })();
 
+    // ── PRICING DISPLAY (single source of truth) ──
+    // Pull the Pro price from /api/config/public (pro_price_ngn, derived from
+    // the backend PRO_PLAN_PRICE_NGN) — the SAME value startPaystack() charges
+    // below — so this plan card can never show a stale or mismatched figure
+    // (it previously hardcoded "$5", a different currency AND value from the
+    // ₦4,500 the backend actually bills). The markup keeps a static ₦ fallback
+    // for the pre-fetch instant / if the config call fails.
+    (async function loadPricingDisplay() {
+      try {
+        const config = await (await fetch(`${BASE_URL}/api/config/public`)).json();
+        const el = document.getElementById("onboardProPrice");
+        if (el && config.pro_price_ngn != null) {
+          el.textContent = "₦" + Number(config.pro_price_ngn).toLocaleString("en-US");
+        }
+      } catch (e) { /* keep the static fallback already in the markup */ }
+    })();
+
     // ── STEP NAV ──
     const steps = ["step-welcome", "step-name", "step-plan"];
     let current = 0;
@@ -486,6 +503,38 @@
       }
       err.textContent = "";
       goStep(2);
+    }
+
+    // ── SKIP ──
+    // A real skip (not "Next"): bypass the name + plan steps and go straight to
+    // the app on the Free plan. Onboarding must still be marked complete server
+    // side — the dashboard (Onboarding.js) bounces un-onboarded users back here —
+    // and /api/user/onboard requires a name, so we reuse the name captured at
+    // signup (pre-filled by checkStatus), falling back to "there" if it isn't
+    // loaded yet. If the server can't be reached we drop into the normal name
+    // step rather than leaving the button dead.
+    async function skipOnboarding(btn) {
+      const nameVal = document.getElementById("onboard-name").value.trim() || "there";
+      if (btn) { btn.disabled = true; btn.textContent = "Skipping…"; }
+      try {
+        const res = await fetch(`${BASE_URL}/api/user/onboard`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${token}`
+          },
+          body: JSON.stringify({ preferred_name: nameVal, plan: "free" })
+        });
+        if (res.ok) {
+          localStorage.setItem("kairos_preferred_name", nameVal);
+          localStorage.setItem("kairos_onboarded", "1");
+          localStorage.setItem("kairos_plan", "free");
+          window.location.href = "/app";
+          return;
+        }
+      } catch (e) { /* fall through to the manual flow below */ }
+      if (btn) { btn.disabled = false; btn.textContent = "Skip"; }
+      goStep(1);
     }
 
     // ── PLAN SELECTION ──

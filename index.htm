@@ -29,10 +29,6 @@
       padding: 0;
     }
 
-    #video-layer {
-      background: var(--bg-base-start, #06070B) !important;
-      opacity: 1 !important;
-    }
   </style>
 </head>
 
@@ -44,9 +40,8 @@
 
   <script src="Onboarding.js"></script>
 
-  <!-- VIDEO INTRO -->
-  <div id="video-layer">
-    <video id="intro-video" src="vid.mp4" playsinline autoplay muted></video>
+  <!-- APP INTERFACE -->
+  <div id="startup-status" hidden>
     <div id="fallback">
       <div>▶ INITIALIZING SYSTEM CORE...</div>
       <div>▶ LOADING NEURAL PROTOCOLS...</div>
@@ -55,8 +50,6 @@
       <div>▶ ONLINE</div>
     </div>
   </div>
-  <button id="skip-btn">[ SKIP INTRO ]</button>
-
   <!-- ATMOSPHERE
        The shared .kx-bg above (gradient + grain + accent glow) is the only
        background, matching every other page. The old WebGL starfield canvas,

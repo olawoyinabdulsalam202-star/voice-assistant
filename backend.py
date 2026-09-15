@@ -346,7 +346,7 @@ _CSP = "; ".join([
     "media-src 'self' blob:",
     # Whitelisting connect-src is the part that matters most: it stops a
     # stolen token being POSTed to an attacker's server.
-    "connect-src 'self' https://api.openrouter.ai https://openrouter.ai "
+    "connect-src 'self' https://fonts.googleapis.com https://api.openrouter.ai https://openrouter.ai "
     "https://api.groq.com https://api.open-meteo.com "
     "https://nominatim.openstreetmap.org https://api.paystack.co "
     "https://accounts.google.com",
@@ -666,7 +666,7 @@ def send_welcome_email(to_email, name, verify_token=None):
           Your K.A.I.R.O.S account is ready.
         </p>
         <p style="margin:0 0 24px;font-size:15px;line-height:1.6;color:#a3a3a3;">
-          Log in, say <strong style="color:#fff;">"Hey Kairos"</strong> or clap twice,
+          Log in and say <strong style="color:#fff;">"Hey Kairos"</strong>,
           and I'll take it from there.
         </p>
         {verify_block}
@@ -719,6 +719,8 @@ def serve_onboarding():
 
 @app.route("/app", methods=["GET"])
 @app.route("/app/new", methods=["GET"])
+@app.route("/new", methods=["GET"])
+@app.route("/chat/<int:conversation_id>", methods=["GET"])
 @app.route("/index.htm", methods=["GET"])
 def serve_dashboard():
     return app.send_static_file("index.htm")
@@ -732,6 +734,10 @@ def serve_main():
 
 @app.route("/contact.html", methods=["GET"])
 def serve_contact_alias():
+    # The contact page file is historically misspelled "conctact.html".
+    # Every internal link now uses the correctly-spelled /contact.html; this
+    # alias maps that canonical URL onto the real file so nothing 404s.
+    # (A physical rename to contact.html is the cleaner end state — pending.)
     return app.send_static_file("conctact.html")
 
 

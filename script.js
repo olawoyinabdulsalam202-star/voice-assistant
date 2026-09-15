@@ -48,6 +48,9 @@ function setOrb(state) {
 })();
 
 // Keep admin-edited free limits live in an already-open /app tab.
+const historyData = [];
+let currentConversationId = localStorage.getItem('kairos_conversation_id') || null;
+
 setInterval(async () => {
   if (document.hidden) return;
   try {
@@ -61,9 +64,17 @@ setInterval(async () => {
 
 (async function primeConversationHistory() {
   const url = new URL(window.location.href);
-  if (url.searchParams.get('new') === '1') {
-    await startNewConversation();
-    history.replaceState(null, '', '/app');
+  const chatMatch = url.pathname.match(/^\/chat\/(\d+)$/);
+  if (chatMatch) {
+    currentConversationId = chatMatch[1];
+    localStorage.setItem('kairos_conversation_id', currentConversationId);
+    await loadCurrentConversation();
+  } else if (url.pathname === '/new' || url.searchParams.get('new') === '1') {
+    history.replaceState(null, '', '/new');
+    currentConversationId = null;
+    localStorage.removeItem('kairos_conversation_id');
+    historyData.length = 0;
+    renderHistory();
   } else {
     await loadCurrentConversation();
   }
@@ -72,11 +83,7 @@ setInterval(async () => {
 // ── REVEAL INTERFACE ──
 function revealInterface(options) {
   const immediate = options && options.immediate;
-  const vl = document.getElementById('video-layer');
-  vl.classList.add('fade-out');
-  document.getElementById('skip-btn').style.display = 'none';
   setTimeout(async () => {
-    vl.style.display = 'none';
     document.getElementById('interface').classList.add('visible');
     document.getElementById('strip').style.opacity = '1';
     ['c1', 'c2', 'c3', 'c4'].forEach(id => {
@@ -97,7 +104,6 @@ function revealInterface(options) {
     // mic just because the page reloaded.
     if (!isMicMuted) {
       startWakeWordListener();
-      startClapDetection();
     }
 
     startClock();
@@ -126,25 +132,7 @@ async function loadUserNotifications() {
 }
 
 // ── VIDEO LOGIC ──
-const vid = document.getElementById('intro-video');
-const hasVideo = vid && vid.getAttribute('src') && vid.getAttribute('src') !== '';
-const skipIntro = new URLSearchParams(window.location.search).get('skip_intro') === '1';
-if (skipIntro) {
-  if (vid) { vid.pause(); vid.style.display = 'none'; }
-  revealInterface({ immediate: true });
-  history.replaceState(null, '', '/app');
-} else if (hasVideo) {
-  vid.play().catch(() => setTimeout(revealInterface, 500));
-  vid.addEventListener('ended', revealInterface);
-  setTimeout(() => { const sb = document.getElementById('skip-btn'); if (sb) sb.classList.add('show'); }, 2000);
-  const skipBtn = document.getElementById('skip-btn');
-  if (skipBtn) skipBtn.addEventListener('click', () => { vid.pause(); revealInterface(); });
-} else {
-  const fb = document.getElementById('fallback');
-  if (fb) fb.classList.add('show');
-  if (vid) vid.style.display = 'none';
-  setTimeout(revealInterface, 5200);
-}
+revealInterface({ immediate: true });
 
 // ── ELEMENTS ──
 const greetingEl = document.getElementById('greeting');
@@ -156,9 +144,10 @@ function autoGreet() {
   const h = new Date().getHours();
   const t = h < 12 ? 'morning' : h < 17 ? 'afternoon' : 'evening';
   const uname = (window.getKairosName && window.getKairosName()) || "friend";
-  const msg = `Good ${t}, ${uname}. Say "Hey Kairos" or clap twice to activate me.`;
-  speakAndType(greetingEl, msg, () => { });
-  statusEl.textContent = '▶ STANDBY — SAY "HEY KAIROS" OR CLAP TWICE';
+  const msg = `Good ${t}, ${uname}. Say "Hey Kairos" to activate me.`;
+  // Keep the standby greeting visual only; speech begins after activation.
+  greetingEl.textContent = msg;
+  statusEl.textContent = '▶ STANDBY — SAY "HEY KAIROS"';
 }
 
 // ════════════════════════════════════════
@@ -264,6 +253,69 @@ let isSpeaking = false;
 let lastSpokenReply = '';
 let speechGeneration = 0;
 let speechEchoGuardUntil = 0;
+let speechInterruptRec = null;
+let speechInterruptText = '';
+
+// ── SPEECH RECOGNITION LOCALE ──
+// The BCP-47 locale handed to every SpeechRecognition instance below, in order:
+//   1. window.KAIROS_SPEECH_LANGUAGE   — runtime override (kept for back-compat)
+//   2. kairos_settings.speechLang      — the user's choice in Settings > Voice
+//   3. navigator.language              — the device locale
+//   4. 'en-US'                         — last resort
+// Previously every site went straight to navigator.language, so a device set to
+// English (United Kingdom) transcribed EVERY speaker with a British acoustic
+// model — measurably worse for Nigerian English and other non-UK accents, with
+// no in-app way to change it. The Settings selector now lets a user pick their
+// own region (e.g. English (Nigeria) = en-NG). Recognition objects are rebuilt
+// on every listen cycle, so a change applies on the next listen without reload.
+function kairosSpeechLang() {
+  if (window.KAIROS_SPEECH_LANGUAGE) return window.KAIROS_SPEECH_LANGUAGE;
+  try {
+    const s = JSON.parse(localStorage.getItem('kairos_settings') || '{}');
+    if (s && s.speechLang) return s.speechLang;
+  } catch (e) { /* malformed or blocked settings — fall through to device/default */ }
+  return navigator.language || 'en-US';
+}
+
+function stopSpeechInterruptListener() {
+  if (!speechInterruptRec) return;
+  try { speechInterruptRec.onend = null; speechInterruptRec.onerror = null; speechInterruptRec.onresult = null; speechInterruptRec.abort(); } catch (e) { }
+  speechInterruptRec = null;
+  speechInterruptText = '';
+}
+
+function startSpeechInterruptListener() {
+  if (!isAwake || isMicMuted || !('webkitSpeechRecognition' in window || 'SpeechRecognition' in window)) return;
+  stopSpeechInterruptListener();
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  const rec = new SR();
+  speechInterruptRec = rec;
+  rec.continuous = true; rec.interimResults = true;
+  rec.lang = kairosSpeechLang();
+  speechInterruptText = '';
+  rec.onresult = (e) => {
+    if (!isSpeaking || Date.now() < speechEchoGuardUntil) return;
+    let interim = '';
+    for (let i = e.resultIndex; i < e.results.length; i++) {
+      const value = e.results[i][0].transcript.trim();
+      if (e.results[i].isFinal) speechInterruptText += `${value} `;
+      else interim += value;
+    }
+    const candidate = `${speechInterruptText} ${interim}`.trim();
+    if (candidate.length < 2) return;
+    const normalized = candidate.toLowerCase().replace(/\s+/g, ' ');
+    const ownReply = (lastSpokenReply || '').toLowerCase().replace(/\s+/g, ' ');
+    if (ownReply && (ownReply.includes(normalized) || normalized.includes(ownReply))) return;
+    stopSpeechInterruptListener();
+    stopKairos();
+    isProcessing = false;
+    speechEchoGuardUntil = Date.now() + 250;
+    processCommand(candidate);
+  };
+  rec.onerror = () => { if (speechInterruptRec === rec) stopSpeechInterruptListener(); };
+  rec.onend = () => { if (speechInterruptRec === rec) speechInterruptRec = null; };
+  try { rec.start(); } catch (e) { stopSpeechInterruptListener(); }
+}
 
 function pauseRecognitionForSpeech() {
   if (!mainRec) return;
@@ -302,6 +354,8 @@ function speakAndType(el, text, onDone) {
     if (voice) u.voice = voice;
     u.onstart = () => {
       isSpeaking = true;
+      speechEchoGuardUntil = Date.now() + 900;
+      setTimeout(() => { if (isSpeaking && generation === speechGeneration) startSpeechInterruptListener(); }, 950);
       if (typingInterval) clearInterval(typingInterval);
       const wordCount = displayText.split(' ').length;
       const speechMs = (wordCount / 2.4) * 1000 / u.rate;
@@ -322,6 +376,7 @@ function speakAndType(el, text, onDone) {
 
 function stopKairos() {
   speechGeneration++;
+  stopSpeechInterruptListener();
   window.speechSynthesis.cancel();
   isSpeaking = false;
   if (typingInterval) { clearInterval(typingInterval); typingInterval = null; }
@@ -347,7 +402,11 @@ function speak(text, onDone) {
     u.rate = 1.05; u.pitch = 0.85; u.volume = 1;
     const voice = getBestVoice();
     if (voice) u.voice = voice;
-    u.onstart = () => { isSpeaking = true; };
+    u.onstart = () => {
+      isSpeaking = true;
+      speechEchoGuardUntil = Date.now() + 900;
+      setTimeout(() => { if (isSpeaking && generation === speechGeneration) startSpeechInterruptListener(); }, 950);
+    };
     u.onend = fireDone; u.onerror = fireDone;
     setTimeout(fireDone, 6000);
     window.speechSynthesis.speak(u);
@@ -543,7 +602,7 @@ function applyMuteVisuals() {
     } else if (!isAwake) {
       statusEl.textContent =
         (window.KAIROS_UI && window.KAIROS_UI.status_standby) ||
-        '▶ STANDBY — SAY "HEY KAIROS" OR CLAP TWICE';
+        '▶ STANDBY — SAY "HEY KAIROS"';
     }
   }
 }
@@ -571,7 +630,6 @@ function muteMic(options) {
   mainRecActive = false;
   restartPending = false;
 
-  stopClapDetection();   // M2 — this is what clears the OS mic light
   setOrb('standby');
   applyMuteVisuals();
 
@@ -592,7 +650,6 @@ function unmuteMic(options) {
 
   // M5: restart listening WITHOUT the "Yes, how can I help?" greeting.
   buildWakeRec();
-  startClapDetection();
 
   if (!silent && typeof showNotification === 'function') {
     showNotification(
@@ -672,7 +729,15 @@ async function startClapDetection() {
   const cooldownMs = wakeCfg.clap_cooldown_ms || 2000;
 
   try {
-    clapStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    // Voice-oriented mic constraints (task #6): echoCancellation stops KAIROS's
+    // own spoken replies (coming out of the speakers) from being picked up here,
+    // and noiseSuppression trims steady background noise. autoGainControl is
+    // deliberately NOT requested: clap detection compares the raw analyser
+    // volume against a fixed threshold, and AGC would auto-normalise the level
+    // and defeat that threshold.
+    clapStream = await navigator.mediaDevices.getUserMedia({
+      audio: { echoCancellation: true, noiseSuppression: true }
+    });
     clapCtx = new (window.AudioContext || window.webkitAudioContext)();
     const source = clapCtx.createMediaStreamSource(clapStream);
     const analyser = clapCtx.createAnalyser();
@@ -750,7 +815,7 @@ function buildWakeRec() {
 
   wakeRec = new SR();
   wakeRec.continuous = true; wakeRec.interimResults = true;
-  wakeRec.lang = (window.KAIROS_SPEECH_LANGUAGE || navigator.language || 'en-US');
+  wakeRec.lang = kairosSpeechLang();
 
   wakeRec.onresult = (e) => {
     if (isAwake || isMicMuted) return;
@@ -769,7 +834,7 @@ function buildWakeRec() {
   // and quietly turns the mic back on.
   wakeRec.onend = () => { if (!isAwake && !isMicMuted) setTimeout(buildWakeRec, 400); };
   wakeRec.onerror = (e) => {
-    if (e.error !== 'no-speech') console.warn('Wake:', e.error);
+    if (e.error !== 'no-speech' && e.error !== 'aborted') console.warn('Wake:', e.error);
     if (!isAwake && !isMicMuted) setTimeout(buildWakeRec, 800);
   };
   try { wakeRec.start(); } catch (e) { if (!isMicMuted) setTimeout(buildWakeRec, 800); }
@@ -819,7 +884,7 @@ function startMainListener() {
 
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
     mainRec = new SR();
-    mainRec.lang = (window.KAIROS_SPEECH_LANGUAGE || navigator.language || 'en-US');
+    mainRec.lang = kairosSpeechLang();
     mainRec.continuous = true; mainRec.interimResults = true; mainRec.maxAlternatives = 3;
 
     let silenceTimer = null, finalText = '', interimText = '';
@@ -1038,7 +1103,7 @@ function sleepKairos() {
   setOrb('standby');                                      // ← ORB: standby
   statusEl.textContent = isMicMuted
     ? ((window.KAIROS_UI && window.KAIROS_UI.status_mic_muted) || '▶ MIC MUTED — TAP TO RESUME')
-    : ((window.KAIROS_UI && window.KAIROS_UI.status_standby) || '▶ STANDBY — SAY "HEY KAIROS" OR CLAP TWICE');
+    : ((window.KAIROS_UI && window.KAIROS_UI.status_standby) || '▶ STANDBY — SAY "HEY KAIROS"');
   if (mainRec) {
     try { mainRec.onend = null; mainRec.onerror = null; mainRec.onresult = null; mainRec.abort(); } catch (e) { }
     mainRec = null;
@@ -1200,7 +1265,7 @@ function stopScreenShare() {
   if (btn) btn.classList.remove('active');
   clearInterval(screenTimerInterval);
   screenTimerInterval = null;
-  statusEl.textContent = isAwake ? '▶ ACTIVE — SPEAK ANYTIME' : '▶ STANDBY — SAY "HEY KAIROS" OR CLAP TWICE';
+  statusEl.textContent = isAwake ? '▶ ACTIVE — SPEAK ANYTIME' : '▶ STANDBY — SAY "HEY KAIROS"';
 }
 
 function captureScreenFrame() {
@@ -1417,7 +1482,13 @@ try { savedPrefs = JSON.parse(localStorage.getItem('kairos_devices') || '{}'); }
 
 async function buildDeviceSelector() {
   try {
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
+    // Prime the mic/camera permission with the same voice-oriented audio
+    // constraints (task #6) the live capture path uses, so the granted stream
+    // is echo-cancelled and noise-suppressed rather than raw.
+    const stream = await navigator.mediaDevices.getUserMedia({
+      audio: { echoCancellation: true, noiseSuppression: true },
+      video: true
+    });
     stream.getTracks().forEach(t => t.stop());
     await refreshDeviceList();
     navigator.mediaDevices.addEventListener('devicechange', async () => {
@@ -1541,9 +1612,6 @@ function selectSpeaker(deviceId) {
 //  reloads and users can start a fresh
 //  conversation or revisit older ones).
 // ════════════════════════════════════════
-const historyData = [];
-let currentConversationId = localStorage.getItem('kairos_conversation_id') || null;
-
 function conversationAuthHeaders(extra) {
   const token = localStorage.getItem('kairos_token') || '';
   return Object.assign({
@@ -1560,6 +1628,7 @@ async function ensureConversation() {
     const data = await r.json();
     currentConversationId = data.id;
     localStorage.setItem('kairos_conversation_id', currentConversationId);
+    history.replaceState(null, '', `/chat/${currentConversationId}`);
     return currentConversationId;
   } catch (e) { return null; }
 }
@@ -1622,6 +1691,14 @@ function renderHistory() {
 }
 
 async function startNewConversation() {
+  currentConversationId = null;
+  localStorage.removeItem('kairos_conversation_id');
+  historyData.length = 0;
+  renderHistory();
+  history.replaceState(null, '', '/new');
+  document.getElementById('conversation-list').style.display = 'none';
+  document.getElementById('history-list').style.display = 'block';
+  return;
   try {
     const r = await fetch('/api/conversations', { method: 'POST', headers: conversationAuthHeaders() });
     if (!r.ok) { showNotification('Could not start a new chat — check your connection.'); return; }

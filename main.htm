@@ -3,13 +3,13 @@
 
 <head>
   <script>
-    if (localStorage.getItem('kairos_token') && !location.search.includes('skip_intro')) {
-      location.replace('/app?new=1');
+    if (localStorage.getItem('kairos_token')) {
+      location.replace('/new');
     }
   </script>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>KAIROS — Elite AI Voice System</title>
+  <title>KAIROS — A Voice Companion for Everyday Life</title>
   <link
     href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;700;900&family=Rajdhani:wght@300;400;500;600&family=Share+Tech+Mono&display=swap"
     rel="stylesheet">
@@ -799,11 +799,15 @@
     /* ── FEATURES ── */
     .feat-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      grid-template-columns: repeat(4, minmax(0, 1fr));
       grid-auto-rows: 1fr;
       gap: 1.5rem;
       max-width: 1280px;
       margin: 0 auto
+    }
+
+    @media (max-width: 1050px) {
+      .feat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     }
 
     .feat-card {
@@ -1294,7 +1298,7 @@
   <div id="intro">
     <div class="i-badge" id="ib"><svg class="ic" aria-hidden="true"><use href="/icons.svg#ic-sparkle" /></svg>ELITE DEV SYSTEMS — LAGOS, NIGERIA</div>
     <div class="i-logo" id="il">K.A.I.R.O.S.</div>
-    <div class="i-sub" id="is">Kinetic Artificial Intelligence Real-time Operational System</div>
+    <div class="i-sub" id="is">A thoughtful companion for your everyday moments</div>
     <div class="i-bar"></div>
     <div class="i-text" id="it"></div>
     <button class="i-skip" onclick="skipIntro()">SKIP →</button>
@@ -1340,9 +1344,8 @@
       <div class="badge"><svg class="ic" aria-hidden="true"><use href="/icons.svg#ic-sparkle" /></svg>Elite Dev Systems — Lagos, Nigeria</div>
       <div class="sys-id">// SYS-ID: KAIROS-v2.0 &nbsp;|&nbsp; BUILD: 2026.04.30</div>
       <h1 class="hero-title">KAIROS</h1>
-      <p class="hero-full">YOUR AI VOICE COMPANION</p>
-      <p class="hero-desc">Your AI voice companion — speaks, listens, and thinks with you. Real-time vision, interrupt
-        detection, and natural conversation.</p>
+      <p class="hero-full">YOUR EVERYDAY COMPANION</p>
+      <p class="hero-desc">A calm voice by your side — ready to listen, help you think, and keep up with the way you move through your day.</p>
       <div class="hero-btns">
         <a href="auth.htm" class="btn btn-p"><span>Launch System →</span></a>
         <a href="manual.htm" class="btn btn-p"><span>View Manual →</span></a>
@@ -1362,7 +1365,7 @@
     <div class="sec-hdr reveal">
       <span class="sec-tag">// capabilities</span>
       <h2 class="sec-title">System Specifications</h2>
-      <p class="sec-sub">Built with cutting-edge technology for seamless human-AI interaction.</p>
+      <p class="sec-sub">Made for natural conversations, useful moments, and a little more ease in your day.</p>
     </div>
     <div class="feat-grid">
       <div class="feat-card reveal">
@@ -1376,8 +1379,8 @@
           <circle cx="11" cy="19" r=".6" fill="currentColor" stroke="none" />
           <circle cx="21" cy="19" r=".6" fill="currentColor" stroke="none" />
         </svg>
-        <h3>GPT-4o Neural Core</h3>
-        <p>Leveraging OpenAI's most advanced model for human-like conversations with deep contextual understanding.</p>
+        <h3>Thoughtful Conversations</h3>
+        <p>Clear, natural replies that keep track of what matters to you and the context of the moment.</p>
       </div>
       <div class="feat-card reveal">
         <div class="feat-num">02</div>
@@ -1398,8 +1401,8 @@
           <path d="M4 11a2 2 0 0 1 2-2h3l2-3h10l2 3h3a2 2 0 0 1 2 2v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2Z" />
           <circle cx="16" cy="17" r="5" />
         </svg>
-        <h3>Camera Vision</h3>
-        <p>Show objects to the camera and ask questions. Real-time image analysis through the vision API.</p>
+        <h3>See What You See</h3>
+        <p>Share a view or an object and get practical help while you are working, making, or exploring.</p>
       </div>
       <div class="feat-card reveal">
         <div class="feat-num">04</div>
@@ -1410,8 +1413,8 @@
           <line x1="16" y1="22" x2="16" y2="27" />
           <path d="M9 14l3-3 3 3 4-5" />
         </svg>
-        <h3>Screen Sharing</h3>
-        <p>Share your screen with the AI for collaborative work and real-time assistance.</p>
+        <h3>Work Alongside You</h3>
+        <p>Share your screen for calm, step-by-step help with the things in front of you.</p>
       </div>
       <div class="feat-card reveal">
         <div class="feat-num">05</div>
@@ -1431,7 +1434,7 @@
           <circle cx="16" cy="16" r="2" fill="currentColor" stroke="none" />
         </svg>
         <h3>Context Memory</h3>
-        <p>Remembers your full conversation for coherent multi-turn exchanges and intelligent follow-ups.</p>
+        <p>Remembers your full conversation for coherent multi-turn exchanges and helpful follow-ups.</p>
       </div>
       <div class="feat-card reveal">
         <div class="feat-num">07</div>
@@ -1442,7 +1445,7 @@
           <line x1="16" y1="20" x2="16" y2="23" />
         </svg>
         <h3>Private & Secure</h3>
-        <p>Your API key stays on your machine. All processing runs locally — no third-party data storage.</p>
+        <p>Your conversations and personal details are handled with care and protected by account-level security.</p>
       </div>
       <div class="feat-card reveal">
         <div class="feat-num">08</div>
@@ -1474,7 +1477,7 @@
           <line x1="9" y1="21" x2="15" y2="21" />
         </svg>
         <h3>Text Mode</h3>
-        <p>Switch to a fully typed conversation whenever voice isn't practical — same intelligence, silent interface.
+        <p>Switch to a fully typed conversation whenever voice isn't practical — the same helpful companion, quietly at your side.
         </p>
       </div>
     </div>
@@ -1570,8 +1573,8 @@
       <div class="cta-g1"></div>
       <div class="cta-g2"></div>
       <span class="cta-tag">// ready to initialize</span>
-      <h2 class="cta-title">Meet Your AI Companion</h2>
-      <p class="cta-desc">Experience the future of voice AI. Built by Elite Dev — Lagos, Nigeria.</p>
+      <h2 class="cta-title">Meet Your New Companion</h2>
+      <p class="cta-desc">A more natural way to get help, stay organised, and have someone to think things through with. Built by Elite Dev — Lagos, Nigeria.</p>
       <div class="cta-btns">
         <a href="auth.htm" class="btn btn-p"><span>Launch System →</span></a>
         <a href="manual.htm" class="btn btn-p"><span>View Manual →</span></a>
@@ -1587,7 +1590,7 @@
       <ul class="foot-links">
         <li><a href="privacy.html">Privacy</a></li>
         <li><a href="terms.html">Terms</a></li>
-        <li><a href="conctact.html">Contact</a></li>
+        <li><a href="contact.html">Contact</a></li>
       </ul>
       <p class="foot-copy">© 2026 Elite Dev — Mr. Abdulsalam</p>
     </div>
@@ -1604,9 +1607,10 @@
       "Your intelligent companion is ready."
     ];
     let skipped = false;
+    let greetingSpoken = false;
 
     function speakGreeting() {
-      if (!('speechSynthesis' in window)) return;
+      if (greetingSpoken || !('speechSynthesis' in window)) return;
       window.speechSynthesis.cancel();
       const full = LINES.join(' ');
       const u = new SpeechSynthesisUtterance(full);
@@ -1617,11 +1621,18 @@
         let v = null;
         for (const n of pref) { v = vv.find(x => x.name.includes(n)); if (v) break; }
         if (v) u.voice = v;
+        u.onstart = () => { greetingSpoken = true; };
         window.speechSynthesis.speak(u);
       };
       const vv = window.speechSynthesis.getVoices();
       if (vv.length > 0) go(); else window.speechSynthesis.onvoiceschanged = go;
     }
+
+    // Browsers may block speech until the visitor interacts. Retry once on
+    // the first gesture without interrupting the intro animation.
+    ['pointerdown', 'keydown', 'touchstart'].forEach(type => {
+      window.addEventListener(type, speakGreeting, { once: true, passive: true });
+    });
 
     function typeLines(lines, idx, el, done) {
       if (skipped || idx >= lines.length) { done(); return; }
@@ -1650,10 +1661,6 @@
     }
 
     window.addEventListener('load', () => {
-      if (new URLSearchParams(location.search).get('skip_intro') === '1') {
-        skipIntro();
-        return;
-      }
       const ib = document.getElementById('ib');
       const il = document.getElementById('il');
       const is_ = document.getElementById('is');

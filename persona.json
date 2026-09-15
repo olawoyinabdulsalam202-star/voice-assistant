@@ -28,10 +28,6 @@
       "kairos online",
       "activate kairos"
     ],
-    "clap_enabled": true,
-    "clap_volume_threshold": 75,
-    "clap_window_ms": 800,
-    "clap_cooldown_ms": 2000,
     "silence_ms": 900,
     "active_timeout_ms": 60000
   },
@@ -128,8 +124,8 @@
 
   "ui": {
     "_comment": "User-facing copy, previously scattered as string literals across all 10 JS files.",
-    "greeting_template": "Good {{TIME_OF_DAY}}, {{USER_NAME}}. Say \"{{WAKE_WORD}}\" or clap twice to activate me.",
-    "status_standby": "▶ STANDBY — SAY \"HEY KAIROS\" OR CLAP TWICE",
+    "greeting_template": "Good {{TIME_OF_DAY}}, {{USER_NAME}}. Say \"{{WAKE_WORD}}\" to activate me.",
+    "status_standby": "▶ STANDBY — SAY \"HEY KAIROS\"",
     "status_listening": "▶ LISTENING...",
     "status_thinking": "▶ THINKING...",
     "status_active": "▶ ACTIVE — SPEAK ANYTIME",

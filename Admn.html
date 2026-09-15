@@ -1199,7 +1199,18 @@
     // ─────────────────────────────────────────────────
     // LOGOUT
     // ─────────────────────────────────────────────────
-    function logout() {
+    async function logout() {
+      const token = localStorage.getItem('kairos_token') || '';
+      if (token) {
+        try {
+          await fetch('/api/auth/logout', {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${token}` }
+          });
+        } catch (e) {
+          // Complete local logout even when the server is unreachable.
+        }
+      }
       ['kairos_token','kairos_role','kairos_email','kairos_name',
        'kairos_preferred_name','kairos_plan','kairos_onboarded']
         .forEach(k => localStorage.removeItem(k));

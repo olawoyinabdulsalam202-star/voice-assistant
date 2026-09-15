@@ -52,8 +52,8 @@ body {
 }
 
 #video-layer.fade-out {
-  opacity: 0;
-  pointer-events: none;
+  opacity: 1;
+  pointer-events: auto;
 }
 
 #intro-video {
@@ -161,7 +161,7 @@ body {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  opacity: 0;
+  opacity: 1;
   transition: opacity 2s ease;
   pointer-events: none;
 }
@@ -232,8 +232,8 @@ body {
   -webkit-backdrop-filter: blur(var(--glass-blur-sm)) saturate(140%);
   backdrop-filter: blur(var(--glass-blur-sm)) saturate(140%);
   box-shadow: var(--shadow-card), inset 0 1px 0 var(--glass-highlight);
-  opacity: 0;
-  pointer-events: none;
+  opacity: 1;
+  pointer-events: auto;
   transition: opacity 1.2s var(--ease-out);
 }
 

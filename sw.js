@@ -3,7 +3,7 @@
 //  Enables offline support and fast loading
 // ════════════════════════════════════════
 
-const CACHE_NAME = 'kairos-v14';
+const CACHE_NAME = 'kairos-v16';
 
 // Only genuinely static, rarely-changing assets are safe to cache-first.
 // The redesign's CSS (design-tokens / background / components / style) is
@@ -15,7 +15,6 @@ const STATIC_ASSETS = [
   '/icons.svg',
   '/icon-192.png',
   '/icon-512.png',
-  'https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap',
   'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js'
 ];
 
@@ -54,6 +53,7 @@ const NEVER_CACHE_PATTERNS = [
 
 self.addEventListener('fetch', (e) => {
   const url = new URL(e.request.url);
+  if (url.origin !== self.location.origin) return;
 
   if (e.request.method !== 'GET') return;
   if (NEVER_CACHE_PATTERNS.some(p => url.pathname.startsWith(p))) return;

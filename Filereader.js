@@ -23,9 +23,13 @@
     return new Promise((resolve, reject) => {
       if (document.querySelector(`script[src="${src}"]`)) { resolve(); return; }
       const s = document.createElement('script');
+      const timeout = setTimeout(() => {
+        s.remove();
+        reject(new Error(`Timed out loading document reader`));
+      }, 15000);
       s.src = src;
-      s.onload  = resolve;
-      s.onerror = () => reject(new Error(`Failed to load: ${src}`));
+      s.onload  = () => { clearTimeout(timeout); resolve(); };
+      s.onerror = () => { clearTimeout(timeout); reject(new Error(`Failed to load document reader`)); };
       document.head.appendChild(s);
     });
   }
@@ -47,8 +51,16 @@
 
   async function extractPdf(file) {
     const arrayBuffer = await file.arrayBuffer();
-    const loadingTask = window.pdfjsLib.getDocument({ data: arrayBuffer });
-    const pdf         = await loadingTask.promise;
+    let pdf;
+    try {
+      const loadingTask = window.pdfjsLib.getDocument({ data: arrayBuffer });
+      pdf = await loadingTask.promise;
+    } catch (workerError) {
+      // Weak or filtered networks often block pdf.worker.min.js. PDF.js can
+      // still extract locally on its main thread, so keep uploads usable.
+      const loadingTask = window.pdfjsLib.getDocument({ data: arrayBuffer, disableWorker: true });
+      pdf = await loadingTask.promise;
+    }
     const totalPages  = pdf.numPages;
     const pageTexts   = [];
 

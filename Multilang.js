@@ -33,9 +33,15 @@
   const LANG_RULES = [
     // Script-based (reliable, no word list needed)
     { code: 'ar', name: 'Arabic',     test: t => /[\u0600-\u06FF]/.test(t) },
-    { code: 'zh', name: 'Chinese',    test: t => /[\u4E00-\u9FFF]/.test(t) },
+    // CJK: test the scripts EXCLUSIVE to one language before shared Han. Japanese
+    // kana (U+3040..U+30FF) is used only by Japanese and Korean Hangul only by
+    // Korean, while Han / kanji (U+4E00..U+9FFF) is shared by Chinese AND Japanese.
+    // Testing Chinese first mis-flagged any kanji-bearing Japanese text as Chinese
+    // (the reported bug), so Japanese and Korean are checked first and Chinese
+    // (Han with no kana / Hangul present) is the remaining case.
     { code: 'ja', name: 'Japanese',   test: t => /[\u3040-\u30FF]/.test(t) },
     { code: 'ko', name: 'Korean',     test: t => /[\uAC00-\uD7AF\u1100-\u11FF]/.test(t) },
+    { code: 'zh', name: 'Chinese',    test: t => /[\u4E00-\u9FFF]/.test(t) },
     { code: 'ru', name: 'Russian',    test: t => /[\u0400-\u04FF]/.test(t) },
     { code: 'hi', name: 'Hindi',      test: t => /[\u0900-\u097F]/.test(t) },
     { code: 'bn', name: 'Bengali',    test: t => /[\u0980-\u09FF]/.test(t) },

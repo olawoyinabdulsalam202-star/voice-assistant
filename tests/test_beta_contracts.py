@@ -37,6 +37,41 @@ class AuthTests(unittest.TestCase):
         self.assertEqual(payload["av"], 3)
         self.assertIsNone(auth.verify_token(token + "tampered"))
 
+    def test_logout_auth_version_revokes_existing_token(self):
+        class Connection:
+            def __init__(self, row):
+                self.row = row
+
+            def execute(self, _sql, _params):
+                return self
+
+            def fetchone(self):
+                return self.row
+
+            def close(self):
+                pass
+
+        database_user = {
+            "id": "user-1",
+            "auth_version": 4,
+            "suspended": 0,
+        }
+        token = auth.issue_token(
+            "user-1", "member@example.com", auth_version=4
+        )
+        payload = auth.verify_token(token)
+
+        self.assertIsNotNone(
+            auth._load_user_from_payload(payload, lambda: Connection(database_user))
+        )
+
+        # The logout endpoint performs this version increment in the database.
+        database_user["auth_version"] += 1
+
+        self.assertIsNone(
+            auth._load_user_from_payload(payload, lambda: Connection(database_user))
+        )
+
 
 class PlanTests(unittest.TestCase):
     def test_expired_paid_plan_loses_pro_access_after_grace(self):
