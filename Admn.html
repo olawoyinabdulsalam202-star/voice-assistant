@@ -1,0 +1,1215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>KAIROS — Admin Control</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;700&family=Share+Tech+Mono&display=swap" rel="stylesheet" />
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png">
+  <link rel="apple-touch-icon" href="/apple-touch-icon-180.png">
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#0D0F16">
+  <link rel="stylesheet" href="/design-tokens.css">
+  <link rel="stylesheet" href="/background.css">
+  <link rel="stylesheet" href="/components.css">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      /* retokenized onto the design system (design-tokens.css) — names kept
+         so any runtime writes to --cyan / --cyan-dim resolve to the accent */
+      --cyan: var(--accent-end);
+      --cyan-dim: rgba(var(--accent-end-rgb), 0.4);
+      --cyan-faint: rgba(var(--accent-end-rgb), 0.08);
+      --bg: transparent;
+      --panel: var(--glass-fill);
+      --green: var(--ok-color);
+      --red: var(--danger-color);
+      --amber: var(--warn-color);
+    }
+
+    body {
+      min-height: 100vh;
+      background: var(--bg);              /* transparent — the shared .kx-bg shows through */
+      font-family: var(--font-mono);
+      color: var(--text-primary);
+      overflow-x: hidden;
+    }
+
+    /* Legacy HUD atmosphere retired — the shared .kx-bg is the only background,
+       so every page is byte-identical. DOM kept (not JS-referenced). */
+    .grid-bg,
+    .scanline,
+    .corner { display: none; }
+
+    /* Layout */
+    .app { display: flex; min-height: 100vh; position: relative; z-index: 1; }
+
+    /* Sidebar */
+    .sidebar {
+      width: 220px; flex-shrink: 0;
+      background: var(--glass-fill-weak);
+      border-right: 1px solid var(--glass-border);
+      backdrop-filter: blur(var(--glass-blur-sm)) saturate(140%);
+      -webkit-backdrop-filter: blur(var(--glass-blur-sm)) saturate(140%);
+      padding: 1.5rem 0;
+      display: flex; flex-direction: column;
+    }
+
+    .sidebar-logo {
+      display: flex; align-items: center; gap: 10px;
+      padding: 0 1.2rem 1.5rem;
+      border-bottom: 1px solid var(--glass-border-soft);
+      margin-bottom: 1.2rem;
+    }
+
+    .logo-mini {
+      width: 32px; height: 32px;
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+    .logo-mini img { width: 100%; height: 100%; display: block; }
+
+    .logo-text { font-family: var(--font-display); font-size: 13px; font-weight: 700; letter-spacing: 4px; color: var(--text-primary); }
+    .logo-badge { font-size: 9px; color: var(--text-tertiary); letter-spacing: 2px; display: block; }
+
+    .nav-item {
+      display: flex; align-items: center; gap: 10px;
+      padding: 10px 1.2rem;
+      font-size: 11px; letter-spacing: 2px;
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: color var(--dur-fast) var(--ease-glass), background var(--dur-fast) var(--ease-glass), border-color var(--dur-fast) var(--ease-glass);
+      border-left: 2px solid transparent;
+      text-transform: uppercase;
+    }
+    .nav-item:hover { color: var(--text-primary); background: var(--glass-fill-weak); }
+    .nav-item.active { color: var(--accent-end); border-left-color: var(--accent-end); background: rgba(var(--accent-end-rgb), 0.08); }
+    .nav-item .ic { width: 16px; height: 16px; flex: 0 0 auto; }
+
+    .sidebar-footer {
+      margin-top: auto; padding: 1rem 1.2rem;
+      border-top: 1px solid var(--glass-border-soft);
+    }
+
+    .logout-btn {
+      width: 100%; padding: 8px;
+      background: transparent;
+      border: 1px solid rgba(var(--danger-rgb), 0.3);
+      border-radius: var(--glass-radius-sm);
+      color: rgba(var(--danger-rgb), 0.75);
+      font-family: var(--font-mono);
+      font-size: 10px; letter-spacing: 2px;
+      cursor: pointer; transition: all var(--dur-fast) var(--ease-glass);
+      text-transform: uppercase;
+      display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+    }
+    .logout-btn:hover { border-color: var(--danger-color); color: var(--danger-color); background: rgba(var(--danger-rgb), 0.08); }
+    .logout-btn .ic { width: 14px; height: 14px; flex: 0 0 auto; }
+
+    /* Main content */
+    .main { flex: 1; padding: 1.8rem 2rem; overflow-y: auto; }
+
+    /* Top bar */
+    .topbar {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 2rem;
+    }
+
+    .topbar-title { font-family: var(--font-display); font-size: 16px; font-weight: 700; letter-spacing: 4px; color: var(--text-primary); }
+    .topbar-sub { font-size: 10px; color: var(--text-tertiary); letter-spacing: 2px; margin-top: 4px; }
+
+    .topbar-right { display: flex; align-items: center; gap: 12px; }
+
+    .status-pill {
+      display: flex; align-items: center; gap: 6px;
+      padding: 5px 10px;
+      border: 1px solid var(--glass-border);
+      background: var(--glass-fill-weak);
+      border-radius: var(--glass-radius-pill);
+      font-size: 10px; letter-spacing: 1.5px; color: var(--text-secondary);
+    }
+    .status-pill .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--ok-color); animation: blink 1.4s ease infinite; }
+    @keyframes blink { 0%,100% { opacity:1; } 50% { opacity:0.2; } }
+
+    /* Stats grid */
+    .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; margin-bottom: 2rem; }
+
+    .stat-card {
+      background: var(--glass-fill);
+      border: 1px solid var(--glass-border);
+      backdrop-filter: blur(var(--glass-blur-sm)) saturate(140%);
+      -webkit-backdrop-filter: blur(var(--glass-blur-sm)) saturate(140%);
+      border-radius: var(--glass-radius-md);
+      box-shadow: var(--shadow-card);
+      padding: 1.2rem;
+      position: relative; overflow: hidden;
+    }
+    .stat-card::before {
+      content: '';
+      position: absolute; top: 0; left: 0; right: 0; height: 1px;
+      /* Toned down from the saturated 0.4 accent to a muted "ash" hairline
+         (Fix 4): the brand gradient is still there but sits close to the
+         weight of --glass-border, so the cards read calm, not electric-blue. */
+      background: var(--accent-gradient);
+      opacity: 0.15;
+    }
+
+    .stat-label { font-size: 9px; letter-spacing: 2px; color: var(--text-tertiary); text-transform: uppercase; margin-bottom: 8px; }
+    .stat-value { font-family: var(--font-display); font-size: 26px; font-weight: 700; color: var(--text-primary); }
+    .stat-delta { font-size: 9px; color: var(--text-tertiary); letter-spacing: 1px; margin-top: 4px; }
+    .stat-icon { position: absolute; right: 1rem; top: 50%; transform: translateY(-50%); width: 28px; height: 28px; color: rgba(var(--accent-end-rgb), 0.1); }
+
+    /* Sparkline (Fix 4) — a low-weight 30-day trend line rendered ONLY where a
+       real per-day series exists. Starts hidden; loadStats() reveals it only
+       after building the curve from genuine data (signups_by_day), so cards
+       without a data source stay plain rather than showing a fabricated graph. */
+    .stat-spark { display: none; width: 100%; height: 26px; margin-top: 10px; opacity: 0.75; overflow: visible; }
+
+    /* Section */
+    .section { background: var(--glass-fill); border: 1px solid var(--glass-border); backdrop-filter: blur(var(--glass-blur-sm)) saturate(140%); -webkit-backdrop-filter: blur(var(--glass-blur-sm)) saturate(140%); border-radius: var(--glass-radius-md); box-shadow: var(--shadow-card); margin-bottom: 1.5rem; overflow: hidden; }
+
+    /* B11: the user table is 6 columns inside a container with
+       overflow:hidden, so on a phone the last columns (including the
+       delete button) were simply clipped off with no way to reach them. */
+    .table-scroll { width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    .table-scroll .user-table { min-width: 720px; }
+
+    .section-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 1rem 1.2rem;
+      border-bottom: 1px solid var(--glass-border-soft);
+    }
+
+    .section-title { font-family: var(--font-display); font-size: 11px; letter-spacing: 3px; font-weight: 500; color: var(--text-primary); }
+
+    .search-box {
+      display: flex; align-items: center; gap: 8px;
+      background: var(--glass-fill-weak);
+      border: 1px solid var(--glass-border);
+      border-radius: var(--glass-radius-sm);
+      padding: 5px 10px;
+    }
+    .search-box input {
+      background: transparent; border: none; outline: none;
+      color: var(--text-primary); font-family: var(--font-mono);
+      font-size: 11px; width: 160px;
+    }
+    .search-box input::placeholder { color: var(--text-tertiary); }
+    .search-box .ic { color: var(--text-secondary); width: 14px; height: 14px; flex: 0 0 auto; }
+
+    /* Table */
+    .user-table { width: 100%; border-collapse: collapse; }
+
+    .user-table th {
+      text-align: left; font-size: 9px; letter-spacing: 2px;
+      color: var(--text-tertiary); padding: 10px 1.2rem;
+      background: var(--glass-fill-weak);
+      border-bottom: 1px solid var(--glass-border);
+      text-transform: uppercase;
+    }
+
+    .user-table td { padding: 12px 1.2rem; border-bottom: 1px solid var(--glass-border-soft); vertical-align: middle; }
+    .user-table tr:last-child td { border-bottom: none; }
+    .user-table tr:hover td { background: var(--glass-fill-weak); }
+
+    .user-avatar {
+      width: 30px; height: 30px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 12px; font-weight: 700;
+      border: 1px solid var(--glass-border);
+    }
+
+    .user-email { font-size: 12px; color: var(--text-primary); }
+    .user-joined { font-size: 10px; color: var(--text-tertiary); letter-spacing: 1px; }
+
+    /* Badges */
+    .badge {
+      display: inline-block; font-size: 9px; letter-spacing: 1.5px;
+      padding: 3px 9px; border-radius: var(--glass-radius-pill); text-transform: uppercase;
+    }
+    .badge-admin   { background: rgba(var(--danger-rgb),0.12); color: var(--danger-color); border: 1px solid rgba(var(--danger-rgb),0.3); }
+    .badge-pro     { background: rgba(var(--ok-rgb),0.12);     color: var(--ok-color);     border: 1px solid rgba(var(--ok-rgb),0.3); }
+    .badge-free    { background: var(--glass-fill-weak);       color: var(--text-secondary); border: 1px solid var(--glass-border); }
+    .badge-override{ background: rgba(var(--warn-rgb),0.12);   color: var(--warn-color);    border: 1px solid rgba(var(--warn-rgb),0.3); }
+
+    /* Toggle */
+    .toggle-wrap { display: flex; align-items: center; gap: 8px; }
+    .toggle {
+      position: relative; width: 38px; height: 20px;
+      background: var(--glass-fill-strong);
+      border: 1px solid var(--glass-border);
+      border-radius: var(--glass-radius-pill); cursor: pointer;
+      transition: background var(--dur-fast) var(--ease-glass), border-color var(--dur-fast) var(--ease-glass);
+      flex-shrink: 0;
+    }
+    .toggle.on { background: rgba(var(--ok-rgb),0.2); border-color: rgba(var(--ok-rgb),0.45); }
+    .toggle-thumb {
+      position: absolute; top: 2px; left: 2px;
+      width: 14px; height: 14px;
+      background: var(--text-secondary);
+      border-radius: 50%;
+      transition: transform var(--dur-fast) var(--ease-glass), background var(--dur-fast) var(--ease-glass);
+      pointer-events: none;
+    }
+    .toggle.on .toggle-thumb { transform: translateX(18px); background: var(--ok-color); }
+
+    .toggle-label { font-size: 9px; letter-spacing: 1px; color: var(--text-tertiary); }
+
+    /* Action btn */
+    .action-btn {
+      background: var(--glass-fill-weak);
+      border: 1px solid var(--glass-border);
+      border-radius: var(--glass-radius-sm);
+      color: var(--text-secondary);
+      font-family: var(--font-mono);
+      font-size: 10px; letter-spacing: 1px;
+      padding: 4px 10px; cursor: pointer;
+      transition: all var(--dur-fast) var(--ease-glass);
+      display: inline-flex; align-items: center; justify-content: center; gap: 5px;
+    }
+    .action-btn:hover { border-color: var(--glass-highlight); color: var(--text-primary); background: var(--glass-fill); }
+    .action-btn.danger { border-color: rgba(var(--danger-rgb),0.3); color: rgba(var(--danger-rgb),0.75); }
+    .action-btn.danger:hover { border-color: var(--danger-color); color: var(--danger-color); background: rgba(var(--danger-rgb),0.08); }
+    .admin-icon { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; display: block; }
+
+    /* Toast */
+    .toast {
+      position: fixed; bottom: 24px; right: 24px;
+      background: var(--glass-fill-strong);
+      border: 1px solid var(--glass-border);
+      backdrop-filter: blur(var(--glass-blur-sm)) saturate(140%);
+      -webkit-backdrop-filter: blur(var(--glass-blur-sm)) saturate(140%);
+      border-radius: var(--glass-radius-sm);
+      box-shadow: var(--shadow-card);
+      padding: 10px 16px;
+      font-size: 11px; letter-spacing: 1.5px;
+      color: var(--text-primary);
+      transform: translateY(10px) scale(0.98); opacity: 0;
+      transition: opacity var(--dur-toast-out) var(--ease-glass), transform var(--dur-toast-out) var(--ease-glass);
+      z-index: 999;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .toast.show { transform: translateY(0) scale(1); opacity: 1; transition: opacity var(--dur-toast-in) var(--ease-glass), transform var(--dur-toast-in) var(--ease-glass); }
+    .toast.success { border-color: rgba(var(--ok-rgb),0.35); color: var(--ok-color); }
+    .toast.error   { border-color: rgba(var(--danger-rgb),0.35); color: var(--danger-color); }
+
+    /* Loading */
+    .loading-row td { text-align: center; padding: 2rem; color: var(--text-tertiary); font-size: 11px; letter-spacing: 2px; }
+
+    @media (max-width: 768px) {
+      .sidebar { width: 52px; }
+      .sidebar .nav-item span, .sidebar .logo-text, .sidebar .logo-badge, .sidebar .logout-btn { display: none; }
+      .sidebar-logo { padding: 0 0.6rem 1rem; justify-content: center; }
+      .stats-grid { grid-template-columns: repeat(2,1fr); }
+      .main { padding: 1rem; }
+    }
+  </style>
+</head>
+<body>
+  <div class="kx-bg" aria-hidden="true"></div>
+
+  <div class="grid-bg"></div>
+  <div class="scanline"></div>
+  <div class="corner corner-tl"></div>
+  <div class="corner corner-tr"></div>
+  <div class="corner corner-bl"></div>
+  <div class="corner corner-br"></div>
+
+  <div class="app">
+
+    <!-- ── SIDEBAR ── -->
+    <aside class="sidebar">
+      <div class="sidebar-logo">
+        <div class="logo-mini"><img src="/kairos-mark-mono-white.svg" alt="" /></div>
+        <div>
+          <div class="logo-text">KAIROS</div>
+          <span class="logo-badge">ADMIN CORE</span>
+        </div>
+      </div>
+
+      <nav>
+        <div class="nav-item active" onclick="showSection('users')">
+          <svg class="ic" aria-hidden="true"><use href="/icons.svg#ic-users"/></svg><span>Users</span>
+        </div>
+        <div class="nav-item" onclick="showSection('stats')">
+          <svg class="ic" aria-hidden="true"><use href="/icons.svg#ic-chart"/></svg><span>Analytics</span>
+        </div>
+        <div class="nav-item" onclick="showSection('settings')">
+          <svg class="ic" aria-hidden="true"><use href="/icons.svg#ic-gear"/></svg><span>Settings</span>
+        </div>
+        <div class="nav-item" onclick="showSection('audit')">
+          <svg class="ic" aria-hidden="true"><use href="/icons.svg#ic-history"/></svg><span>Audit Log</span>
+        </div>
+        <div class="nav-item" onclick="showSection('messages')">
+          <svg class="ic" aria-hidden="true"><use href="/icons.svg#ic-bell"/></svg><span>Messages</span>
+        </div>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div style="font-size:9px;color:var(--text-tertiary);letter-spacing:1.5px;margin-bottom:8px;" id="admin-email-display">—</div>
+        <button class="logout-btn" onclick="logout()"><svg class="ic" aria-hidden="true"><use href="/icons.svg#ic-logout"/></svg>Logout</button>
+      </div>
+    </aside>
+
+    <!-- ── MAIN ── -->
+    <main class="main">
+
+      <!-- Top bar -->
+      <div class="topbar">
+        <div>
+          <div class="topbar-title">CONTROL CENTER</div>
+          <div class="topbar-sub">KAIROS ADMIN — RESTRICTED ACCESS</div>
+        </div>
+        <div class="topbar-right">
+          <div class="status-pill"><div class="dot"></div> SYSTEM ONLINE</div>
+        </div>
+      </div>
+
+      <!-- Stats -->
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-label">Total Users</div>
+          <div class="stat-value" id="stat-total">—</div>
+          <!-- Real 30-day trend, populated by renderTotalSpark() from
+               signups_by_day + users_total. Hidden until that data arrives. -->
+          <svg class="stat-spark" id="spark-total" viewBox="0 0 100 28" preserveAspectRatio="none" aria-hidden="true"></svg>
+          <div class="stat-delta">ALL REGISTERED · LAST 30D</div>
+          <svg class="ic stat-icon" aria-hidden="true"><use href="/icons.svg#ic-users"/></svg>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Paying</div>
+          <div class="stat-value" id="stat-paying">—</div>
+          <div class="stat-delta">ACTIVE SUBS</div>
+          <svg class="ic stat-icon" aria-hidden="true"><use href="/icons.svg#ic-credit-card"/></svg>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Free Override</div>
+          <div class="stat-value" id="stat-override">—</div>
+          <div class="stat-delta">GRANTED BY YOU</div>
+          <svg class="ic stat-icon" aria-hidden="true"><use href="/icons.svg#ic-shield-check"/></svg>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Free Tier</div>
+          <div class="stat-value" id="stat-free">—</div>
+          <div class="stat-delta">STANDARD USERS</div>
+          <svg class="ic stat-icon" aria-hidden="true"><use href="/icons.svg#ic-user"/></svg>
+        </div>
+      </div>
+
+      <!-- Users section -->
+      <div class="section" id="section-users">
+        <div class="section-header">
+          <div class="section-title">USER REGISTRY</div>
+          <div class="search-box">
+            <svg class="ic" aria-hidden="true"><use href="/icons.svg#ic-search"/></svg>
+            <input type="text" id="search-input" placeholder="search by email..." oninput="filterUsers(this.value)" />
+          </div>
+        </div>
+
+        <div class="table-scroll">
+          <table class="user-table">
+            <thead>
+              <tr>
+                <th></th>
+                <th>User</th>
+                <th>Plan</th>
+                <th>Pro Override</th>
+                <th>Joined</th>
+                <th>Last Active</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="user-tbody">
+              <tr class="loading-row"><td colspan="7">LOADING USER DATA...</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div id="user-pagination"></div>
+      </div>
+
+      <!-- Analytics (N1) — was "CONNECT YOUR DATABASE TO SEE ANALYTICS",
+           but the database was already connected. Now fed by
+           GET /api/admin/stats. -->
+      <div class="section" id="section-stats" style="display:none;">
+        <div class="section-header"><div class="section-title">ANALYTICS</div></div>
+        <div id="analytics-body">
+          <div style="padding:2rem;text-align:center;color:var(--text-tertiary);
+                      font-size:11px;letter-spacing:2px;">LOADING…</div>
+        </div>
+      </div>
+
+      <!-- Settings (N2) — was "SETTINGS PANEL — COMING SOON", but
+           /api/admin/persona GET+POST already existed. This is the
+           wake word + prompt editor that had no UI. -->
+      <div class="section" id="section-settings" style="display:none;">
+        <div class="section-header">
+          <div class="section-title">SYSTEM SETTINGS</div>
+          <button onclick="loadPersona()" class="action-btn"
+                  style="font-size:10px;letter-spacing:1px;"><svg class="ic" aria-hidden="true"><use href="/icons.svg#ic-refresh"/></svg>RELOAD</button>
+        </div>
+        <div id="settings-body" style="padding:1.2rem;">
+          <div style="text-align:center;color:var(--text-tertiary);
+                      font-size:11px;letter-spacing:2px;">LOADING…</div>
+        </div>
+      </div>
+
+      <div class="section" id="section-audit" style="display:none;">
+        <div class="section-header"><div class="section-title">AUDIT LOG</div><button onclick="loadAudit()" class="action-btn">RELOAD</button></div>
+        <div id="audit-body" style="padding:1.2rem;color:var(--text-secondary);font-size:10px;">LOADING...</div>
+      </div>
+
+      <div class="section" id="section-messages" style="display:none;">
+        <div class="section-header"><div class="section-title">SEND NOTIFICATION</div></div>
+        <div style="padding:1.2rem;max-width:720px;">
+          <label style="display:block;font-size:10px;color:var(--text-secondary);margin-bottom:10px;">AUDIENCE
+            <select id="notify-segment" style="display:block;margin-top:5px;width:260px;"><option value="all">All users</option><option value="free">Free users</option><option value="pro">Pro users</option><option value="inactive">Inactive for 7+ days</option><option value="free_near_limit">Free users at 80%+ today</option><option value="expiring">Pro expiring within 7 days</option></select>
+          </label>
+          <label style="display:block;font-size:10px;color:var(--text-secondary);margin-bottom:10px;">DELIVERY
+            <select id="notify-channel" style="display:block;margin-top:5px;width:260px;"><option value="in_app">In-app notification</option><option value="email">Email</option><option value="both">In-app and email</option></select>
+          </label>
+          <input id="notify-title" placeholder="Notification title" style="display:block;width:100%;margin:8px 0;background:var(--glass-fill-weak);color:var(--text-primary);border:1px solid var(--glass-border);border-radius:var(--glass-radius-sm);padding:10px;box-sizing:border-box;">
+          <textarea id="notify-body" rows="5" placeholder="Write the message users will receive" style="display:block;width:100%;margin:8px 0;background:var(--glass-fill-weak);color:var(--text-primary);border:1px solid var(--glass-border);border-radius:var(--glass-radius-sm);padding:10px;box-sizing:border-box;"></textarea>
+          <button onclick="sendManualNotification()" class="action-btn" style="cursor:pointer;">SEND MESSAGE</button>
+        </div>
+      </div>
+
+    </main>
+  </div>
+
+  <!-- User detail drawer -->
+  <div id="user-drawer" style="display:none;position:fixed;inset:0;z-index:1000;background:rgba(6,7,11,0.72);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);padding:4vh 4vw;overflow:auto;">
+    <div style="max-width:720px;margin:0 auto;background:rgba(13,15,22,0.92);border:1px solid var(--glass-border);border-radius:var(--glass-radius-lg);box-shadow:var(--shadow-panel);backdrop-filter:blur(var(--glass-blur));-webkit-backdrop-filter:blur(var(--glass-blur));padding:1.25rem;">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:1rem;border-bottom:1px solid var(--glass-border);padding-bottom:1rem;">
+        <div><div id="drawer-email" style="color:var(--text-primary);font-size:13px;"></div><div id="drawer-meta" style="color:var(--text-tertiary);font-size:10px;margin-top:5px;"></div></div>
+        <button class="action-btn" onclick="closeUser()" aria-label="Close user details">CLOSE</button>
+      </div>
+      <div id="drawer-body" style="padding-top:1rem;color:var(--text-secondary);font-size:11px;">LOADING...</div>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div class="toast" id="toast"></div>
+
+  <script src="/dropdown.js"></script>
+  <script>
+    // ─────────────────────────────────────────────────
+    // CONFIG
+    // ─────────────────────────────────────────────────
+    const API = '';  // same origin. Change to 'http://localhost:5000' if needed
+
+    // ─────────────────────────────────────────────────
+    // GUARD — kick non-admins immediately
+    //
+    // F4: the old guard set window.location.href but did NOT return,
+    // so the rest of this script kept running and loadUsers() fired
+    // during the redirect.
+    // F5: role came from localStorage, which the user controls —
+    // localStorage.setItem('kairos_role','admin') opened the panel.
+    // The real gate is server-side now (require_admin verifies the
+    // signed token's role against the database); this check is only
+    // to avoid a pointless render.
+    // ─────────────────────────────────────────────────
+    const token    = localStorage.getItem('kairos_token');
+    const adminEmail = localStorage.getItem('kairos_email');
+
+    if (!token) {
+      window.location.replace('auth.htm');
+      throw new Error('redirecting');   // stop script execution
+    }
+
+    document.getElementById('admin-email-display').textContent = adminEmail || '';
+
+    // ─────────────────────────────────────────────────
+    // HTML ESCAPING  (S6)
+    // Signup validated only the email's DNS domain, never its format,
+    // so an address like  <img src=x onerror=...>@gmail.com  registered
+    // fine and then executed in the admin's browser when this table
+    // rendered it. Unauthenticated signup to admin XSS.
+    // ─────────────────────────────────────────────────
+    function esc(value) {
+      return String(value == null ? '' : value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    // For values interpolated into JS string literals in onclick=""
+    function escAttr(value) {
+      return esc(value).replace(/\\/g, '\\\\');
+    }
+
+    // ─────────────────────────────────────────────────
+    // TOAST
+    // ─────────────────────────────────────────────────
+    function toast(msg, type = 'success') {
+      const el = document.getElementById('toast');
+      el.textContent = msg;
+      el.className = `toast ${type} show`;
+      setTimeout(() => el.classList.remove('show'), 3000);
+    }
+
+    // ─────────────────────────────────────────────────
+    // NAVIGATION
+    // ─────────────────────────────────────────────────
+    function showSection(name) {
+      ['users','stats','settings','audit','messages'].forEach(s => {
+        document.getElementById(`section-${s}`).style.display = s === name ? '' : 'none';
+      });
+      document.querySelectorAll('.nav-item').forEach((el, i) => {
+        el.classList.toggle('active', ['users','stats','settings','audit','messages'][i] === name);
+      });
+      // Load on first open rather than up front.
+      if (name === 'settings' && !Object.keys(personaData).length) loadPersona();
+      if (name === 'audit') loadAudit();
+    }
+
+    // ─────────────────────────────────────────────────
+    // LOAD USERS
+    // GET /api/admin/users?limit&offset&q
+    // The endpoint is paginated now — it used to return every row and
+    // this page rendered all of them into the DOM at once, which hangs
+    // the browser once the user count grows.
+    // ─────────────────────────────────────────────────
+    let allUsers = [];
+    let userTotal = 0;
+    let userOffset = 0;
+    const USER_PAGE_SIZE = 50;
+    let searchQuery = '';
+
+    async function loadUsers(offset) {
+      userOffset = offset || 0;
+      try {
+        const params = new URLSearchParams({
+          limit: USER_PAGE_SIZE,
+          offset: userOffset,
+        });
+        if (searchQuery) params.set('q', searchQuery);
+
+        const res = await fetch(`${API}/api/admin/users?${params}`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+
+        if (res.status === 401 || res.status === 403) {
+          window.location.replace('auth.htm');
+          return;
+        }
+
+        const data = await res.json();
+        // Tolerate both the new {users,total} shape and a bare array.
+        allUsers  = Array.isArray(data) ? data : (data.users || []);
+        userTotal = Array.isArray(data) ? allUsers.length : (data.total || 0);
+
+        renderUsers(allUsers);
+        renderPagination();
+        loadStats();
+
+      } catch (err) {
+        document.getElementById('user-tbody').innerHTML =
+          `<tr class="loading-row"><td colspan="7" style="color:rgba(var(--danger-rgb),0.7);">CANNOT REACH SERVER — IS FLASK RUNNING?</td></tr>`;
+      }
+    }
+
+    // ─────────────────────────────────────────────────
+    // RENDER USERS
+    // ─────────────────────────────────────────────────
+    const COLORS = ['#6E8CFF','#5BD8E0','#B39DFF','#6FD08C','#E8A55C'];
+
+    function renderUsers(users) {
+      if (!users.length) {
+        document.getElementById('user-tbody').innerHTML =
+          `<tr class="loading-row"><td colspan="7">NO USERS FOUND</td></tr>`;
+        return;
+      }
+
+      document.getElementById('user-tbody').innerHTML = users.map((u, i) => {
+        const initial = esc((u.email || '?')[0].toUpperCase());
+        const color   = COLORS[i % COLORS.length];
+        const joined  = u.created_at ? new Date(u.created_at).toLocaleDateString() : '—';
+        // "Last Active" comes from last_seen_at (real activity, not just login),
+        // so an admin can tell a fresh signup from a dormant account at a glance.
+        const lastActive = u.last_seen_at ? new Date(u.last_seen_at).toLocaleDateString() : '—';
+
+        const planBadge = u.role === 'admin'
+          ? `<span class="badge badge-admin">admin</span>`
+          : u.plan_tier === 'pro'
+            ? `<span class="badge badge-pro">paying pro</span>`
+            : u.is_pro_override
+              ? `<span class="badge badge-override">override</span>`
+              : `<span class="badge badge-free">free</span>`;
+
+        const isOn = u.is_pro_override ? 'on' : '';
+
+        // Expiry is shown because plan_tier alone no longer tells the
+        // whole story — a 'pro' row can be expired or in grace.
+        const expiry = u.plan_expires_at
+          ? new Date(u.plan_expires_at).toLocaleDateString()
+          : (u.is_pro_override ? 'no expiry (override)' : '—');
+
+        // S6: every interpolated value is escaped. u.email in particular
+        // is attacker-controlled at signup.
+        const safeId    = esc(u.id);
+        const safeEmail = esc(u.email);
+        const attrId    = escAttr(u.id);
+        const attrEmail = escAttr(u.email);
+
+        return `
+          <tr id="row-${safeId}">
+            <td><div class="user-avatar" style="color:${color};border-color:${color}33;">${initial}</div></td>
+            <td>
+              <div class="user-email">${safeEmail}</div>
+              <div class="user-joined">ID: ${esc(String(u.id || '').slice(0, 8))}...</div>
+            </td>
+            <td>
+              ${planBadge}
+              <div class="user-joined" style="margin-top:3px;">until ${esc(expiry)}</div>
+            </td>
+            <td>
+              <div class="toggle-wrap">
+                <div class="toggle ${isOn}" id="tog-${safeId}" onclick="toggleOverride('${attrId}', this)">
+                  <div class="toggle-thumb"></div>
+                </div>
+                <span class="toggle-label" id="tog-label-${safeId}">${u.is_pro_override ? 'GRANTED' : 'OFF'}</span>
+              </div>
+            </td>
+            <td><span style="font-size:10px;color:var(--text-tertiary);">${esc(joined)}</span></td>
+            <td><span style="font-size:10px;color:var(--text-tertiary);">${esc(lastActive)}</span></td>
+            <td>
+              <div style="display:flex;gap:6px;">
+                <button class="action-btn" onclick="openUser('${attrId}')"
+                        title="View details" aria-label="View details">
+                  <svg class="admin-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z"/><circle cx="12" cy="12" r="2.5"/></svg>
+                </button>
+                <button class="action-btn danger" onclick="removeUser('${attrId}', '${attrEmail}')"
+                        title="Delete user" aria-label="Delete user">
+                  <svg class="admin-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>
+                </button>
+              </div>
+            </td>
+          </tr>`;
+      }).join('');
+    }
+
+    // ─────────────────────────────────────────────────
+    // STATS  (N1)
+    // These were computed client-side from the user list, so they only
+    // ever described the page you were looking at. Now they come from
+    // GET /api/admin/stats, which aggregates across the whole database.
+    // ─────────────────────────────────────────────────
+    async function loadStats() {
+      try {
+        const res = await fetch(`${API}/api/admin/stats`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (!res.ok) return;
+        const s = await res.json();
+
+        const set = (id, val) => {
+          const el = document.getElementById(id);
+          if (el) el.textContent = val == null ? '—' : val;
+        };
+
+        set('stat-total',    s.users_total);
+        set('stat-paying',   s.paying);
+        set('stat-override', s.overrides);
+        set('stat-free',     s.free);
+
+        renderTotalSpark(s);
+        renderAnalytics(s);
+      } catch (e) { /* leave the last known values on screen */ }
+    }
+
+    // Total Users sparkline — the ONLY stat card with a real per-day series.
+    // Paying / Free Override / Free Tier are scalars with no historical
+    // endpoint, so they stay plain (adding a line there would be fabricated).
+    // The curve is exact: the right-hand point IS users_total, and each
+    // earlier day subtracts that day's real signups (signups_by_day), giving
+    // the true total-users count across the 30-day window — no invented data.
+    function renderTotalSpark(s) {
+      const svg = document.getElementById('spark-total');
+      if (!svg) return;
+      const days  = Array.isArray(s.signups_by_day) ? s.signups_by_day : [];
+      const total = Number(s.users_total);
+      if (days.length < 2 || !Number.isFinite(total)) { svg.style.display = 'none'; return; }
+
+      const counts = days.map(d => Number(d.count) || 0);
+      const totals = new Array(counts.length);
+      totals[counts.length - 1] = total;
+      for (let i = counts.length - 2; i >= 0; i--) {
+        totals[i] = totals[i + 1] - counts[i + 1];
+      }
+
+      const W = 100, H = 28, pad = 3;
+      const min = Math.min(...totals), max = Math.max(...totals);
+      const span = (max - min) || 1;
+      const px = i => (counts.length === 1 ? 0 : (i / (counts.length - 1)) * W);
+      const py = v => H - pad - ((v - min) / span) * (H - pad * 2);
+      const pts  = totals.map((v, i) => `${px(i).toFixed(2)},${py(v).toFixed(2)}`);
+      const line = 'M' + pts.join(' L');
+      const area = `M${px(0).toFixed(2)},${H} L` + pts.join(' L') + ` L${px(counts.length - 1).toFixed(2)},${H} Z`;
+
+      // Ash palette (Fix 4 follow-up): the trend line is drawn in muted
+      // graphite (text-secondary → text-tertiary) rather than the electric
+      // accent gradient, so the graph reads as a calm data layer, not a
+      // glowing brand element. The data itself is unchanged and real.
+      svg.innerHTML =
+        '<defs>' +
+          '<linearGradient id="spark-grad-total" x1="0" y1="0" x2="0" y2="1">' +
+            '<stop offset="0" style="stop-color:var(--text-secondary)"/>' +
+            '<stop offset="1" style="stop-color:var(--text-tertiary)"/>' +
+          '</linearGradient>' +
+        '</defs>' +
+        `<path d="${area}" fill="url(#spark-grad-total)" opacity="0.08"/>` +
+        `<path d="${line}" fill="none" stroke="var(--text-secondary)" stroke-width="1.5" ` +
+              'vector-effect="non-scaling-stroke" stroke-linecap="round" stroke-linejoin="round"/>';
+      svg.style.display = 'block';
+    }
+
+    // Daily-signups chart — the ONE real time series the backend exposes
+    // (signups_by_day). Drawn as ash bars in the Analytics panel so the
+    // "add the graphs" ask is met with genuine data, never a fabricated
+    // curve. Every other analytics figure is a scalar and stays a number.
+    function signupsChart(s) {
+      const days = Array.isArray(s.signups_by_day) ? s.signups_by_day : [];
+      if (days.length < 2) return '';
+      const counts = days.map(d => Number(d.count) || 0);
+      const max = Math.max(1, ...counts);
+      const n   = counts.length;
+      const W = 100, H = 34, gap = n > 40 ? 0.4 : 0.9;
+      const bw = (W - gap * (n - 1)) / n;
+      const bars = counts.map((c, i) => {
+        const h = (c / max) * (H - 1);
+        const x = i * (bw + gap);
+        return `<rect x="${x.toFixed(2)}" y="${(H - Math.max(0.6, h)).toFixed(2)}" ` +
+               `width="${bw.toFixed(2)}" height="${Math.max(0.6, h).toFixed(2)}" ` +
+               `rx="0.4" fill="var(--text-secondary)" opacity="0.5"/>`;
+      }).join('');
+      const totalNew = counts.reduce((a, b) => a + b, 0);
+      return `
+        <div style="padding:1.2rem 1.2rem 0.4rem;border-bottom:1px solid var(--glass-border-soft);margin-bottom:0.2rem;">
+          <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:9px;">
+            <div style="font-size:9px;letter-spacing:2px;color:var(--text-tertiary);text-transform:uppercase;">Signups · last ${n} days</div>
+            <div style="font-size:9px;letter-spacing:1px;color:var(--text-tertiary);">${totalNew} new</div>
+          </div>
+          <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none"
+               style="width:100%;height:66px;display:block;overflow:visible;" aria-hidden="true">${bars}</svg>
+          <div style="display:flex;justify-content:space-between;font-size:8px;letter-spacing:1px;color:var(--text-tertiary);margin-top:6px;">
+            <span>${esc(days[0].day || '')}</span><span>${esc(days[n - 1].day || '')}</span>
+          </div>
+        </div>`;
+    }
+
+    function renderAnalytics(s) {
+      const el = document.getElementById('analytics-body');
+      if (!el) return;
+
+      const card = (label, value, hint) => `
+        <div style="background:var(--glass-fill-weak);border:1px solid var(--glass-border);
+                    border-radius:var(--glass-radius-sm);padding:14px;">
+          <div style="font-size:9px;letter-spacing:2px;color:var(--text-tertiary);
+                      text-transform:uppercase;">${esc(label)}</div>
+          <div style="font-size:22px;color:var(--text-primary);margin-top:6px;">${esc(value)}</div>
+          ${hint ? `<div style="font-size:9px;color:var(--text-tertiary);margin-top:4px;">${esc(hint)}</div>` : ''}
+        </div>`;
+
+      const naira = (n) => '₦' + Number(n || 0).toLocaleString();
+
+      el.innerHTML = signupsChart(s) + `
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));
+                    gap:12px;padding:1.2rem;">
+          ${card('Revenue 30d', naira(s.revenue_30d_ngn), `${s.payments_30d || 0} payments`)}
+          ${card('Expiring in 7d', s.expiring_7d, 'need renewal')}
+          ${card('New users 7d', s.users_new_7d, `${s.users_new_30d || 0} in 30d`)}
+          ${card('Active 7d', s.active_7d, 'seen recently')}
+          ${card('Dormant', s.dormant_7d, 'onboarded, inactive 7d+')}
+          ${card('Never onboarded', s.not_onboarded, 'signed up, never finished')}
+          ${card('Unverified email', s.unverified, 'cannot receive campaigns')}
+          ${card('Messages today', s.messages_today, '')}
+          ${card('Conversations', s.conversations, `${s.messages_stored || 0} messages stored`)}
+          ${card('Memories', s.memories, '')}
+          ${card('Open reminders', s.reminders_open, '')}
+          ${card('Passkeys', s.passkeys, '')}
+          ${card('Suspended', s.suspended, '')}
+        </div>
+        <div style="padding:0 1.2rem 1.2rem;">
+          <div style="font-size:9px;letter-spacing:2px;color:var(--text-tertiary);
+                      text-transform:uppercase;margin-bottom:8px;">AI Providers</div>
+          <div style="display:flex;flex-wrap:wrap;gap:8px;">
+            ${Object.entries((s.providers && s.providers.providers) || {}).map(([name, p]) => `
+              <span style="font-size:10px;letter-spacing:1px;padding:4px 10px;border-radius:var(--glass-radius-pill);
+                           border:1px solid ${p.configured ? 'rgba(var(--ok-rgb),0.35)' : 'rgba(var(--danger-rgb),0.35)'};
+                           color:${p.configured ? 'var(--ok-color)' : 'var(--danger-color)'};">
+                ${esc(name)} ${p.configured ? 'ready' : 'no key'}
+              </span>`).join('')}
+          </div>
+        </div>`;
+    }
+
+    // ─────────────────────────────────────────────────
+    // PAGINATION
+    // ─────────────────────────────────────────────────
+    function renderPagination() {
+      const el = document.getElementById('user-pagination');
+      if (!el) return;
+      if (userTotal <= USER_PAGE_SIZE) { el.innerHTML = ''; return; }
+
+      const from = userOffset + 1;
+      const to   = Math.min(userOffset + USER_PAGE_SIZE, userTotal);
+      const prevDisabled = userOffset <= 0;
+      const nextDisabled = userOffset + USER_PAGE_SIZE >= userTotal;
+
+      const btn = (label, disabled, newOffset) => `
+        <button ${disabled ? 'disabled' : ''}
+                onclick="loadUsers(${newOffset})"
+                style="background:var(--glass-fill-weak);border:1px solid var(--glass-border);
+                       color:${disabled ? 'var(--text-tertiary)' : 'var(--text-primary)'};
+                       padding:6px 14px;min-height:32px;border-radius:var(--glass-radius-sm);font-size:10px;
+                       letter-spacing:1px;cursor:${disabled ? 'not-allowed' : 'pointer'};">
+          ${label}
+        </button>`;
+
+      el.innerHTML = `
+        <div style="display:flex;align-items:center;justify-content:space-between;
+                    gap:12px;padding:12px 1.2rem;border-top:1px solid var(--glass-border-soft);">
+          <span style="font-size:10px;letter-spacing:1px;color:var(--text-tertiary);">
+            ${from}–${to} of ${userTotal}
+          </span>
+          <div style="display:flex;gap:8px;">
+            ${btn('← PREV', prevDisabled, Math.max(0, userOffset - USER_PAGE_SIZE))}
+            ${btn('NEXT →', nextDisabled, userOffset + USER_PAGE_SIZE)}
+          </div>
+        </div>`;
+    }
+
+    // ─────────────────────────────────────────────────
+    // SEARCH — server-side now, since the client only holds one page.
+    // Debounced so typing does not fire a request per keystroke.
+    // ─────────────────────────────────────────────────
+    let searchTimer = null;
+
+    function filterUsers(q) {
+      searchQuery = (q || '').trim();
+      clearTimeout(searchTimer);
+      searchTimer = setTimeout(() => loadUsers(0), 250);
+    }
+
+    // ─────────────────────────────────────────────────
+    // TOGGLE PRO OVERRIDE
+    // Calls PATCH /api/admin/users/<id>/override
+    // Body: { is_pro_override: true/false }
+    // ─────────────────────────────────────────────────
+    async function toggleOverride(userId, el) {
+      const isOn = el.classList.contains('on');
+      const newVal = !isOn;
+
+      // Optimistic UI
+      el.classList.toggle('on', newVal);
+      document.getElementById(`tog-label-${userId}`).textContent = newVal ? 'GRANTED' : 'OFF';
+
+      try {
+        const res = await fetch(`${API}/api/admin/users/${userId}/override`, {
+          method: 'PATCH',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ is_pro_override: newVal })
+        });
+
+        if (!res.ok) throw new Error();
+
+        // Update local data
+        const user = allUsers.find(u => u.id === userId);
+        if (user) user.is_pro_override = newVal;
+        loadStats();
+
+        toast(newVal ? '✓ PRO OVERRIDE GRANTED' : '✓ OVERRIDE REMOVED', 'success');
+
+      } catch {
+        // Revert on failure
+        el.classList.toggle('on', isOn);
+        document.getElementById(`tog-label-${userId}`).textContent = isOn ? 'GRANTED' : 'OFF';
+        toast('ERROR — COULD NOT UPDATE USER', 'error');
+      }
+    }
+
+    // ─────────────────────────────────────────────────
+    // REMOVE USER — DELETE /api/admin/users/<id>
+    // The backend now cascades: memories, conversations, history,
+    // reminders, passkeys and payments go with the user. Previously
+    // those rows were orphaned, so "delete" did not really delete.
+    // ─────────────────────────────────────────────────
+    async function removeUser(userId, email) {
+      if (!confirm(`Remove ${email}?\n\nThis deletes their conversations, memories, reminders and passkeys. It cannot be undone.`)) return;
+
+      try {
+        const res = await fetch(`${API}/api/admin/users/${userId}`, {
+          method: 'DELETE',
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(data.error || 'delete failed');
+        }
+
+        toast('✓ USER REMOVED', 'success');
+        loadUsers(userOffset);   // refetch so pagination stays correct
+
+      } catch (err) {
+        toast((err.message || 'COULD NOT REMOVE USER').toUpperCase(), 'error');
+      }
+    }
+
+    let openedUserId = null;
+
+    function closeUser() {
+      openedUserId = null;
+      document.getElementById('user-drawer').style.display = 'none';
+    }
+
+    async function openUser(userId) {
+      openedUserId = userId;
+      const drawer = document.getElementById('user-drawer');
+      const body = document.getElementById('drawer-body');
+      drawer.style.display = 'block';
+      body.textContent = 'LOADING USER DETAILS...';
+      try {
+        const res = await fetch(`${API}/api/admin/users/${encodeURIComponent(userId)}`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Could not load user');
+        const u = data.user;
+        document.getElementById('drawer-email').textContent = u.email;
+        document.getElementById('drawer-meta').textContent = `ID ${u.id} • joined ${u.created_at ? new Date(u.created_at).toLocaleDateString() : '—'}`;
+        const usage = data.feature_usage_today || {};
+        const limits = data.feature_limits || {};
+        const quota = (key) => limits[key] == null ? `${usage[key] || 0} / unlimited` : `${usage[key] || 0} / ${limits[key]}`;
+        const payments = (data.payments || []).map(p => `<div style="padding:5px 0;border-bottom:1px solid var(--glass-border-soft);">${esc(p.plan)} · ₦${Number(p.amount_ngn || 0).toLocaleString()} · ${esc(p.at || '')}</div>`).join('') || '<span style="opacity:.5">No payments</span>';
+        body.innerHTML = `
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:8px;margin-bottom:1rem;">
+            ${drawerMetric('Plan', `${u.plan_tier} (${u.plan_reason})`)}
+            ${drawerMetric('Messages today', u.messages_used_today)}
+            ${drawerMetric('Camera', quota('vision'))}
+            ${drawerMetric('Screen', quota('screen'))}
+            ${drawerMetric('Memories', quota('memories'))}
+            ${drawerMetric('Reminders', quota('active_reminders'))}
+            ${drawerMetric('Conversations', data.counts.conversations)}
+            ${drawerMetric('Passkeys', data.counts.passkeys)}
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:1rem;">
+            <select id="drawer-plan" style="font-size:12px;">
+              <option value="free">Free</option><option value="pro">Pro</option><option value="organisation">Organisation</option>
+            </select>
+            <input id="drawer-days" type="number" min="1" placeholder="days" style="width:80px;background:var(--glass-fill-weak);color:var(--text-primary);border:1px solid var(--glass-border);border-radius:var(--glass-radius-sm);padding:8px;">
+            <button class="action-btn" onclick="setUserPlan()">SET PLAN</button>
+            <button class="action-btn" onclick="toggleOpenedUserSuspension(${!u.suspended})">${u.suspended ? 'UNSUSPEND' : 'SUSPEND'}</button>
+            <button class="action-btn" onclick="sendUserReset()">SEND RESET</button>
+          </div>
+          <div style="color:var(--text-secondary);font-size:10px;letter-spacing:1px;margin-bottom:6px;">PAYMENT HISTORY</div>
+          <div style="font-size:10px;line-height:1.8;">${payments}</div>`;
+        document.getElementById('drawer-plan').value = u.plan_tier === 'organisation' ? 'organisation' : (u.is_pro ? 'pro' : 'free');
+      } catch (err) {
+        body.textContent = (err.message || 'Could not load user').toUpperCase();
+      }
+    }
+
+    function drawerMetric(label, value) {
+      return `<div style="border:1px solid var(--glass-border);border-radius:var(--glass-radius-sm);padding:9px;"><div style="font-size:9px;color:var(--text-tertiary);letter-spacing:1px;">${esc(label)}</div><div style="margin-top:5px;color:var(--text-primary);">${esc(value)}</div></div>`;
+    }
+
+    async function drawerRequest(path, method, payload) {
+      const res = await fetch(`${API}${path}`, { method, headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }, body: payload ? JSON.stringify(payload) : undefined });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Request failed');
+      return data;
+    }
+
+    async function setUserPlan() {
+      if (!openedUserId) return;
+      try {
+        const plan = document.getElementById('drawer-plan').value;
+        const rawDays = document.getElementById('drawer-days').value;
+        await drawerRequest(`/api/admin/users/${encodeURIComponent(openedUserId)}/plan`, 'PATCH', { plan, days: rawDays ? Number(rawDays) : undefined });
+        toast('PLAN UPDATED', 'success'); loadUsers(userOffset); openUser(openedUserId);
+      } catch (e) { toast(e.message.toUpperCase(), 'error'); }
+    }
+
+    async function toggleUserSuspension(userId, suspended) {
+      try { await drawerRequest(`/api/admin/users/${encodeURIComponent(userId)}/suspend`, 'PATCH', { suspended, reason: suspended ? prompt('Suspension reason:') || 'Admin action' : '' }); toast(suspended ? 'USER SUSPENDED' : 'USER UNSUSPENDED', 'success'); loadUsers(userOffset); openUser(userId); }
+      catch (e) { toast(e.message.toUpperCase(), 'error'); }
+    }
+
+    function toggleOpenedUserSuspension(suspended) {
+      if (!openedUserId) return;
+      return toggleUserSuspension(openedUserId, suspended);
+    }
+
+    async function sendUserReset() {
+      if (!openedUserId || !confirm('Send a password reset email to this user?')) return;
+      try { await drawerRequest(`/api/admin/users/${encodeURIComponent(openedUserId)}/send-reset`, 'POST'); toast('RESET EMAIL SENT', 'success'); }
+      catch (e) { toast(e.message.toUpperCase(), 'error'); }
+    }
+
+    // ─────────────────────────────────────────────────
+    // PERSONA / PROMPT EDITOR  (N2)
+    // GET+POST /api/admin/persona already existed in the backend — the
+    // whole wake word + system prompt editor was built and simply had
+    // no interface. Note the wake word now actually takes effect: the
+    // frontend reads it from /api/config/public, whereas script.js used
+    // to ignore it and use a hardcoded list.
+    // ─────────────────────────────────────────────────
+    const PERSONA_FIELDS = [
+      ['wake_word',                'Wake word',            'input',
+       'What the user says to activate KAIROS. Applies to every client on next load.'],
+      ['system_prompt',            'System prompt',        'area',  'Main chat personality.'],
+      ['code_system_prompt',       'Coding prompt',        'area',  'Used when the router detects a coding question.'],
+      ['security_system_prompt',   'Security prompt',      'area',  'Used for security questions.'],
+      ['vision_system_prompt',     'Camera prompt',        'area',  'Live camera analysis.'],
+      ['screen_system_prompt',     'Screen prompt',        'area',  'Screen share analysis.'],
+      ['dev_credit_response',      'Developer credit',     'area',  'Answer to "who built you".'],
+      ['jailbreak_refusal_ask',    'Refusal — chat',       'input', ''],
+      ['jailbreak_refusal_vision', 'Refusal — camera',     'input', ''],
+      ['jailbreak_refusal_screen', 'Refusal — screen',     'input', ''],
+    ];
+
+    let personaData = {};
+
+    async function loadPersona() {
+      const body = document.getElementById('settings-body');
+      if (!body) return;
+      try {
+        const headers = { 'Authorization': `Bearer ${token}` };
+        const [personaRes, configRes] = await Promise.all([
+          fetch(`${API}/api/admin/persona`, { headers }),
+          fetch(`${API}/api/admin/config`, { headers })
+        ]);
+        if (!personaRes.ok || !configRes.ok) throw new Error('load failed');
+        personaData = await personaRes.json();
+        const configData = await configRes.json();
+        personaData.limits = configData.config?.limits || {};
+        personaData.referrals = configData.config?.referrals || { enabled:false, required_referrals:5, reward_type:'pro_days', reward_amount:1 };
+        renderPersona();
+      } catch (e) {
+        body.innerHTML = `<div style="text-align:center;color:rgba(var(--danger-rgb),0.8);
+          font-size:11px;letter-spacing:2px;">COULD NOT LOAD SETTINGS</div>`;
+      }
+    }
+
+    function renderPersona() {
+      const body = document.getElementById('settings-body');
+      const inputStyle = `width:100%;background:var(--glass-fill-weak);
+        border:1px solid var(--glass-border);color:var(--text-primary);
+        font-family:inherit;font-size:11px;padding:9px 11px;border-radius:var(--glass-radius-sm);
+        outline:none;box-sizing:border-box;line-height:1.6;`;
+
+      body.innerHTML = PERSONA_FIELDS.map(([key, label, kind, hint]) => {
+        const value = esc(personaData[key] || '');
+        const field = kind === 'area'
+          ? `<textarea id="p-${key}" rows="5" style="${inputStyle}resize:vertical;">${value}</textarea>`
+          : `<input id="p-${key}" value="${value}" style="${inputStyle}" />`;
+        return `
+          <div style="margin-bottom:16px;">
+            <div style="font-size:9px;letter-spacing:2px;color:var(--text-tertiary);
+                        text-transform:uppercase;margin-bottom:5px;">${esc(label)}</div>
+            ${field}
+            ${hint ? `<div style="font-size:9px;color:var(--text-tertiary);
+                        margin-top:4px;">${esc(hint)}</div>` : ''}
+          </div>`;
+      }).join('') + renderLimits(personaData.limits || {}) + renderReferrals(personaData.referrals || {}) + `
+        <div style="display:flex;gap:10px;margin-top:20px;flex-wrap:wrap;">
+          <button onclick="savePersona()" id="persona-save"
+                  style="background:rgba(var(--ok-rgb),0.1);border:1px solid rgba(var(--ok-rgb),0.35);
+                         color:var(--ok-color);padding:10px 20px;min-height:40px;border-radius:var(--glass-radius-sm);
+                         font-family:inherit;font-size:11px;letter-spacing:2px;cursor:pointer;">
+            SAVE CHANGES
+          </button>
+          <button onclick="loadPersona()"
+                  style="background:none;border:1px solid var(--glass-border);
+                         color:var(--text-secondary);padding:10px 20px;min-height:40px;
+                         border-radius:var(--glass-radius-sm);font-family:inherit;font-size:11px;
+                         letter-spacing:2px;cursor:pointer;">
+            DISCARD
+          </button>
+        </div>
+        <div style="margin-top:14px;font-size:9px;color:var(--text-tertiary);line-height:1.7;">
+          Saved to the database, not to a file — edits survive redeploys and reach
+          every server worker within a few seconds. Use {{USER_NAME}} to address the user.
+        </div>`;
+    }
+
+    const LIMIT_FIELDS = [['free_daily_messages','Daily messages'],['free_per_minute','Messages/minute'],['free_file_uploads','File uploads'],['free_vision_daily','Camera analyses/day'],['free_screen_daily','Screen analyses/day'],['free_memories','Saved memories'],['free_active_reminders','Active reminders'],['new_user_trial_days','New user Pro trial days']];
+    function renderLimits(limits) { return `<div style="border-top:1px solid var(--glass-border);margin-top:20px;padding-top:16px;"><div style="font-size:10px;letter-spacing:2px;color:var(--accent-end);margin-bottom:10px;">FREE PLAN LIMITS</div><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;">${LIMIT_FIELDS.map(([k,l]) => `<label style="font-size:9px;color:var(--text-secondary);">${l}<input id="limit-${k}" type="number" min="0" value="${Number(limits[k] ?? 0)}" style="width:100%;margin-top:5px;background:var(--glass-fill-weak);color:var(--text-primary);border:1px solid var(--glass-border);border-radius:var(--glass-radius-sm);padding:8px;box-sizing:border-box;"></label>`).join('')}</div><button onclick="saveLimits()" class="action-btn" style="margin-top:12px;">SAVE LIMITS</button></div>`; }
+    async function saveLimits() { const limits = {}; LIMIT_FIELDS.forEach(([k]) => limits[k] = Number(document.getElementById(`limit-${k}`).value)); try { const data = await drawerRequest('/api/admin/limits','PUT',{limits}); LIMIT_FIELDS.forEach(([k]) => { document.getElementById(`limit-${k}`).value = data.limits[k]; }); toast(`LIMITS ACTIVE: ${data.limits.free_daily_messages} MSG / ${data.limits.free_file_uploads} FILES`,'success'); } catch (e) { toast(e.message.toUpperCase(),'error'); } }
+    function renderReferrals(value) { return `<div style="border-top:1px solid var(--glass-border);margin-top:20px;padding-top:16px;"><div style="font-size:10px;color:var(--accent-end);letter-spacing:2px;margin-bottom:10px;">REFERRALS</div><label style="font-size:9px;color:var(--text-secondary);display:flex;align-items:center;gap:8px;"><input id="referral-enabled" type="checkbox" ${value.enabled ? 'checked' : ''}> ENABLE REFERRALS</label><label style="display:block;font-size:9px;color:var(--text-secondary);margin-top:10px;">VERIFIED REFERRALS REQUIRED<input id="referral-required" type="number" min="1" max="1000" value="${Number(value.required_referrals || 5)}" style="display:block;width:160px;margin-top:5px;background:var(--glass-fill-weak);color:var(--text-primary);border:1px solid var(--glass-border);border-radius:var(--glass-radius-sm);padding:8px;"></label><label style="display:block;font-size:9px;color:var(--text-secondary);margin-top:10px;">REWARD TYPE<select id="referral-type" style="display:block;width:160px;margin-top:5px;font-size:12px;"><option value="pro_days" ${value.reward_type === 'pro_days' ? 'selected' : ''}>Pro days</option><option value="credits" ${value.reward_type === 'credits' ? 'selected' : ''}>Credits</option></select></label><label style="display:block;font-size:9px;color:var(--text-secondary);margin-top:10px;">REWARD AMOUNT<input id="referral-amount" type="number" min="1" max="100000" value="${Number(value.reward_amount || 1)}" style="display:block;width:160px;margin-top:5px;background:var(--glass-fill-weak);color:var(--text-primary);border:1px solid var(--glass-border);border-radius:var(--glass-radius-sm);padding:8px;"></label><button onclick="saveReferrals()" class="action-btn" style="margin-top:10px;">SAVE REFERRAL SETTINGS</button></div>`; }
+    async function saveReferrals() { const value = { enabled: !!document.getElementById('referral-enabled')?.checked, required_referrals: Number(document.getElementById('referral-required')?.value || 5), reward_type: document.getElementById('referral-type')?.value || 'pro_days', reward_amount: Number(document.getElementById('referral-amount')?.value || 1) }; try { await drawerRequest('/api/admin/config/referrals','PUT',{value}); toast('REFERRALS UPDATED','success'); } catch (e) { toast(e.message.toUpperCase(),'error'); } }
+    async function loadAudit() { const body = document.getElementById('audit-body'); try { const res = await fetch(`${API}/api/admin/audit`, {headers:{'Authorization':`Bearer ${token}`}}); const data = await res.json(); if (!res.ok) throw new Error(data.error || 'load failed'); body.innerHTML = (data.entries || []).map(e => `<div style="padding:9px 0;border-bottom:1px solid var(--glass-border-soft);"><b style="color:var(--text-primary);">${esc(e.action || '')}</b> Â· ${esc(e.admin_email || '')} Â· ${esc(e.target_id || '')}<div style="opacity:.55;margin-top:3px;">${esc(e.detail || '')} Â· ${esc(e.created_at || '')}</div></div>`).join('') || 'No audit entries.'; } catch (e) { body.textContent = e.message.toUpperCase(); } }
+
+    async function sendManualNotification() {
+      const title = document.getElementById('notify-title')?.value.trim();
+      const body = document.getElementById('notify-body')?.value.trim();
+      const segment = document.getElementById('notify-segment')?.value || 'all';
+      const channel = document.getElementById('notify-channel')?.value || 'in_app';
+      if (!title || !body) return toast('TITLE AND MESSAGE REQUIRED', 'error');
+      try {
+        const data = await drawerRequest('/api/admin/notifications', 'POST', { title, body, segment, channel });
+        toast(`${data.recipients} USERS MATCHED / ${data.emails_sent || 0} EMAILS SENT`, 'success');
+        document.getElementById('notify-title').value = '';
+        document.getElementById('notify-body').value = '';
+      } catch (e) { toast(e.message.toUpperCase(), 'error'); }
+    }
+
+    async function savePersona() {
+      const btn = document.getElementById('persona-save');
+      if (btn) { btn.disabled = true; btn.textContent = 'SAVING…'; }
+
+      const payload = {};
+      PERSONA_FIELDS.forEach(([key]) => {
+        const el = document.getElementById(`p-${key}`);
+        if (el && el.value.trim()) payload[key] = el.value;
+      });
+
+      try {
+        const res = await fetch(`${API}/api/admin/persona`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || 'save failed');
+        personaData = data.persona || payload;
+        toast('✓ SETTINGS SAVED', 'success');
+      } catch (err) {
+        toast((err.message || 'COULD NOT SAVE').toUpperCase(), 'error');
+      } finally {
+        if (btn) { btn.disabled = false; btn.textContent = 'SAVE CHANGES'; }
+      }
+    }
+
+    // ─────────────────────────────────────────────────
+    // LOGOUT
+    // ─────────────────────────────────────────────────
+    function logout() {
+      ['kairos_token','kairos_role','kairos_email','kairos_name',
+       'kairos_preferred_name','kairos_plan','kairos_onboarded']
+        .forEach(k => localStorage.removeItem(k));
+      window.location.replace('auth.htm');
+    }
+
+    // ─────────────────────────────────────────────────
+    // INIT
+    // ─────────────────────────────────────────────────
+    loadUsers(0);
+  </script>
+</body>
+</html>

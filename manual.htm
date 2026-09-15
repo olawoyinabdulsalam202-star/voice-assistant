@@ -1,0 +1,1164 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kairos Voice Command Manual</title>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;700;900&family=Share+Tech+Mono&display=swap"
+    rel="stylesheet">
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png">
+  <link rel="apple-touch-icon" href="/apple-touch-icon-180.png">
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#0D0F16">
+  <link rel="stylesheet" href="/design-tokens.css">
+  <link rel="stylesheet" href="/background.css">
+  <link rel="stylesheet" href="/components.css">
+  <style>
+    :root {
+      /* retokenized onto the design system (design-tokens.css).
+         --text-primary / --text-secondary are intentionally NOT redefined
+         here so the shared token values flow through unchanged. */
+      --bg-primary: transparent;
+      --bg-secondary: var(--glass-fill-weak);
+      --bg-card: var(--glass-fill);
+      --bg-card-hover: var(--glass-fill-strong);
+      --accent-cyan: var(--accent-end);
+      --accent-cyan-glow: rgba(var(--accent-end-rgb), 0.28);
+      --accent-blue: var(--accent-start);
+      --accent-purple: var(--accent-start);
+      --accent-green: var(--ok-color);
+      --accent-amber: var(--warn-color);
+      --accent-rose: var(--danger-color);
+      --text-muted: var(--text-tertiary);
+      --border-subtle: var(--glass-border-soft);
+      --border-glow: var(--glass-border);
+      --glow-cyan: var(--glow-accent);
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: var(--font-ui);
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* Page-specific particle layer disabled — the shared .kx-bg is the only atmosphere */
+    .bg-particles {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 0;
+      overflow: hidden;
+    }
+
+    .particle {
+      position: absolute;
+      width: 2px;
+      height: 2px;
+      background: var(--accent-cyan);
+      border-radius: 50%;
+      opacity: 0.3;
+      animation: float 15s infinite ease-in-out;
+    }
+
+    @keyframes float {
+
+      0%,
+      100% {
+        transform: translateY(0) translateX(0);
+        opacity: 0.3;
+      }
+
+      25% {
+        transform: translateY(-30px) translateX(15px);
+        opacity: 0.6;
+      }
+
+      50% {
+        transform: translateY(-15px) translateX(-10px);
+        opacity: 0.2;
+      }
+
+      75% {
+        transform: translateY(-40px) translateX(20px);
+        opacity: 0.5;
+      }
+    }
+
+    /* Layout */
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 2rem;
+      position: relative;
+      z-index: 1;
+    }
+
+    /* Header */
+    .header {
+      text-align: center;
+      padding: 3rem 0 2rem;
+      position: relative;
+    }
+
+    .header::before {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 300px;
+      height: 300px;
+      background: radial-gradient(circle, var(--accent-cyan-glow) 0%, transparent 70%);
+      pointer-events: none;
+      z-index: -1;
+    }
+
+    .logo {
+      font-family: var(--font-display);
+      font-size: 2.5rem;
+      font-weight: 700;
+      background: var(--accent-gradient);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      color: transparent;
+      letter-spacing: 0.04em;
+      margin-bottom: 0.5rem;
+    }
+
+    .subtitle {
+      color: var(--text-secondary);
+      font-size: 1rem;
+      font-weight: 400;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+    }
+
+    .status-indicator {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-top: 1.5rem;
+      padding: 0.5rem 1.25rem;
+      background: rgba(var(--ok-rgb), 0.1);
+      border: 1px solid rgba(var(--ok-rgb), 0.25);
+      border-radius: 100px;
+      font-size: 0.85rem;
+      color: var(--ok-color);
+      font-family: var(--font-mono);
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      background: var(--accent-green);
+      border-radius: 50%;
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+
+      0%,
+      100% {
+        opacity: 1;
+        transform: scale(1);
+      }
+
+      50% {
+        opacity: 0.5;
+        transform: scale(0.8);
+      }
+    }
+
+    /* Search Bar */
+    .search-container {
+      max-width: 600px;
+      margin: 2rem auto 3rem;
+      position: relative;
+    }
+
+    .search-box {
+      width: 100%;
+      padding: 1rem 1.5rem 1rem 3rem;
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--glass-radius-sm);
+      color: var(--text-primary);
+      font-size: 1rem;
+      font-family: var(--font-ui);
+      -webkit-backdrop-filter: blur(var(--glass-blur-sm)) saturate(140%);
+      backdrop-filter: blur(var(--glass-blur-sm)) saturate(140%);
+      transition: border-color var(--dur-fast) var(--ease-out), box-shadow var(--dur-fast) var(--ease-out);
+      outline: none;
+    }
+
+    .search-box:focus {
+      border-color: var(--accent-cyan);
+      box-shadow: 0 0 0 3px var(--accent-cyan-glow), var(--glow-cyan);
+    }
+
+    .search-box::placeholder {
+      color: var(--text-muted);
+    }
+
+    .search-icon {
+      position: absolute;
+      left: 1rem;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--text-muted);
+      pointer-events: none;
+    }
+
+    .search-shortcut {
+      position: absolute;
+      right: 1rem;
+      top: 50%;
+      transform: translateY(-50%);
+      padding: 0.25rem 0.5rem;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-subtle);
+      border-radius: 6px;
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      font-family: var(--font-mono);
+    }
+
+    /* Category Tabs */
+    .tabs-container {
+      display: flex;
+      gap: 0.5rem;
+      margin-bottom: 2rem;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    .tab {
+      padding: 0.6rem 1.2rem;
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--glass-radius-sm);
+      color: var(--text-secondary);
+      font-size: 0.9rem;
+      font-weight: 500;
+      cursor: pointer;
+      -webkit-backdrop-filter: blur(var(--glass-blur-sm)) saturate(140%);
+      backdrop-filter: blur(var(--glass-blur-sm)) saturate(140%);
+      transition: background var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-family: var(--font-ui);
+    }
+
+    .tab:hover {
+      background: var(--bg-card-hover);
+      border-color: var(--border-glow);
+      color: var(--text-primary);
+    }
+
+    .tab.active {
+      background: linear-gradient(135deg, rgba(var(--accent-start-rgb), 0.16), rgba(var(--accent-end-rgb), 0.12));
+      border-color: rgba(var(--accent-end-rgb), 0.5);
+      color: var(--accent-end);
+      box-shadow: 0 0 15px var(--accent-cyan-glow);
+    }
+
+    .tab-icon {
+      display: inline-flex;
+      align-items: center;
+    }
+
+    .tab-icon .ic {
+      width: 1.05em;
+      height: 1.05em;
+    }
+
+    /* Command Cards Grid */
+    .commands-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+      gap: 1.5rem;
+      margin-bottom: 3rem;
+    }
+
+    .command-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--glass-radius-md);
+      padding: 1.5rem;
+      -webkit-backdrop-filter: blur(var(--glass-blur-sm)) saturate(140%);
+      backdrop-filter: blur(var(--glass-blur-sm)) saturate(140%);
+      transition: transform var(--dur-panel) var(--ease-glass), border-color var(--dur-panel) var(--ease-out), box-shadow var(--dur-panel) var(--ease-out);
+      position: relative;
+      overflow: hidden;
+      cursor: pointer;
+    }
+
+    .command-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 3px;
+      background: var(--accent-gradient);
+      transform: scaleX(0);
+      transform-origin: left;
+      transition: transform var(--dur-panel) var(--ease-glass);
+    }
+
+    .command-card:hover {
+      transform: translateY(-4px);
+      border-color: var(--border-glow);
+      box-shadow: var(--shadow-card), var(--glow-accent);
+    }
+
+    .command-card:hover::before {
+      transform: scaleX(1);
+    }
+
+    .command-card.hidden {
+      display: none;
+    }
+
+    .card-header {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      margin-bottom: 1rem;
+    }
+
+    .card-icon {
+      width: 40px;
+      height: 40px;
+      border-radius: var(--glass-radius-sm);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      background: var(--glass-fill-strong);
+      border: 1px solid var(--glass-border-soft);
+      color: var(--accent-mid);
+    }
+
+    .card-icon .ic {
+      width: 22px;
+      height: 22px;
+    }
+
+    /* Per-category hues unified to a single glass chip (category classes kept for JS/markup) */
+
+    .card-title {
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    .card-action {
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      padding: 0.25rem 0.6rem;
+      background: var(--bg-secondary);
+      border-radius: 6px;
+      color: var(--accent-cyan);
+      margin-top: 0.25rem;
+      display: inline-block;
+    }
+
+    .phrases-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    .phrase-item {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.6rem 0.8rem;
+      background: var(--bg-secondary);
+      border-radius: 8px;
+      font-size: 0.9rem;
+      color: var(--text-secondary);
+      transition: background var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
+      border: 1px solid transparent;
+    }
+
+    .phrase-item:hover {
+      background: rgba(var(--accent-end-rgb), 0.06);
+      border-color: var(--border-glow);
+      color: var(--text-primary);
+    }
+
+    .phrase-bullet {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--accent-cyan);
+      flex-shrink: 0;
+    }
+
+    .phrase-text {
+      font-style: italic;
+    }
+
+    /* Code Block Section */
+    .code-section {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: 16px;
+      padding: 2rem;
+      margin-bottom: 2rem;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .code-section::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 3px;
+      background: linear-gradient(90deg, var(--accent-purple), var(--accent-blue));
+    }
+
+    .code-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 1.5rem;
+    }
+
+    .code-title {
+      font-size: 1.2rem;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .copy-btn {
+      padding: 0.5rem 1rem;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-subtle);
+      border-radius: 8px;
+      color: var(--text-secondary);
+      font-size: 0.85rem;
+      cursor: pointer;
+      transition: background var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
+      font-family: var(--font-ui);
+    }
+
+    .copy-btn:hover {
+      background: var(--accent-cyan);
+      color: var(--bg-primary);
+      border-color: var(--accent-cyan);
+    }
+
+    .code-block {
+      background: var(--bg-primary);
+      border: 1px solid var(--border-subtle);
+      border-radius: 12px;
+      padding: 1.5rem;
+      overflow-x: auto;
+      font-family: var(--font-mono);
+      font-size: 0.85rem;
+      line-height: 1.7;
+      color: var(--text-secondary);
+    }
+
+    .code-keyword {
+      color: var(--accent-cyan);
+    }
+
+    .code-string {
+      color: var(--accent-green);
+    }
+
+    .code-function {
+      color: var(--accent-amber);
+    }
+
+    .code-comment {
+      color: var(--text-muted);
+    }
+
+    .code-variable {
+      color: var(--accent-purple);
+    }
+
+    .code-operator {
+      color: var(--accent-rose);
+    }
+
+    /* Vision Detection Highlight */
+    .vision-highlight {
+      background: linear-gradient(135deg, rgba(var(--ok-rgb), 0.1), rgba(var(--accent-end-rgb), 0.1));
+      border: 1px solid rgba(var(--ok-rgb), 0.22);
+      border-radius: var(--glass-radius-sm);
+      padding: 1.5rem;
+      margin-top: 1rem;
+    }
+
+    .vision-title {
+      color: var(--accent-green);
+      font-weight: 600;
+      margin-bottom: 0.75rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .tag-container {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin-top: 0.5rem;
+    }
+
+    .tag {
+      padding: 0.3rem 0.7rem;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-subtle);
+      border-radius: 6px;
+      font-size: 0.8rem;
+      color: var(--text-secondary);
+      font-family: var(--font-mono);
+    }
+
+    /* Footer */
+    .footer {
+      text-align: center;
+      padding: 3rem 0;
+      color: var(--text-muted);
+      font-size: 0.85rem;
+      border-top: 1px solid var(--border-subtle);
+      margin-top: 2rem;
+    }
+
+    .footer-brand {
+      font-family: var(--font-display);
+      font-weight: 700;
+      background: var(--accent-gradient);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      color: transparent;
+    }
+
+    /* Toast Notification */
+    .toast {
+      position: fixed;
+      bottom: 2rem;
+      right: 2rem;
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      padding: 1rem 1.5rem;
+      background: var(--glass-fill-strong);
+      border: 1px solid rgba(var(--ok-rgb), 0.4);
+      border-radius: var(--glass-radius-sm);
+      color: var(--ok-color);
+      font-weight: 500;
+      -webkit-backdrop-filter: blur(var(--glass-blur-sm)) saturate(140%);
+      backdrop-filter: blur(var(--glass-blur-sm)) saturate(140%);
+      transform: translateY(16px) scale(0.98);
+      opacity: 0;
+      transition: opacity var(--dur-toast-out) var(--ease-glass), transform var(--dur-toast-out) var(--ease-glass);
+      z-index: 1000;
+      box-shadow: var(--shadow-toast);
+      pointer-events: none;
+    }
+
+    .toast::before {
+      content: '';
+      width: 18px;
+      height: 18px;
+      flex: none;
+      background: var(--ok-color);
+      -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6 9 17l-5-5'/%3E%3C/svg%3E") center / contain no-repeat;
+      mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6 9 17l-5-5'/%3E%3C/svg%3E") center / contain no-repeat;
+    }
+
+    .toast.show {
+      transform: translateY(0) scale(1);
+      opacity: 1;
+      transition: opacity var(--dur-toast-in) var(--ease-glass), transform var(--dur-toast-in) var(--ease-glass);
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      .container {
+        padding: 1rem;
+      }
+
+      .logo {
+        font-size: 1.8rem;
+      }
+
+      .commands-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .tabs-container {
+        gap: 0.4rem;
+      }
+
+      .tab {
+        padding: 0.5rem 0.8rem;
+        font-size: 0.8rem;
+      }
+    }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: var(--bg-primary);
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: var(--bg-card-hover);
+      border-radius: 4px;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+      background: var(--accent-cyan);
+    }
+
+    /* Animations */
+    @keyframes fadeInUp {
+      from {
+        opacity: 0;
+        transform: translateY(20px);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .command-card {
+      animation: fadeInUp 0.5s ease forwards;
+    }
+
+    .command-card:nth-child(1) {
+      animation-delay: 0.05s;
+    }
+
+    .command-card:nth-child(2) {
+      animation-delay: 0.1s;
+    }
+
+    .command-card:nth-child(3) {
+      animation-delay: 0.15s;
+    }
+
+    .command-card:nth-child(4) {
+      animation-delay: 0.2s;
+    }
+
+    .command-card:nth-child(5) {
+      animation-delay: 0.25s;
+    }
+
+    .command-card:nth-child(6) {
+      animation-delay: 0.3s;
+    }
+
+    .command-card:nth-child(7) {
+      animation-delay: 0.35s;
+    }
+
+    .command-card:nth-child(8) {
+      animation-delay: 0.4s;
+    }
+  </style>
+  <base target="_blank">
+</head>
+
+<body>
+  <div class="kx-bg" aria-hidden="true"></div>
+  <!-- Background Particles -->
+  <div class="bg-particles" id="particles"></div>
+
+  <div class="container">
+    <!-- Header -->
+    <header class="header">
+      <div class="logo">KAIROS</div>
+      <div class="subtitle">Voice Command Reference</div>
+      <div class="status-indicator">
+        <span class="status-dot"></span>
+        <span>System Online</span>
+      </div>
+      <a id="manualBackLink" href="main.htm?skip_intro=1" style="display:inline-block;margin-top:1rem;color:var(--accent-end);text-decoration:none;font-family:var(--font-mono);font-size:.78rem;">← BACK HOME</a>
+    </header>
+
+    <!-- Search -->
+    <div class="search-container">
+      <svg class="search-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+        stroke-width="2">
+        <circle cx="11" cy="11" r="8"></circle>
+        <path d="m21 21-4.3-4.3"></path>
+      </svg>
+      <input type="text" class="search-box" id="searchBox" placeholder="Search commands..." autocomplete="off">
+      <span class="search-shortcut">Ctrl K</span>
+    </div>
+
+    <!-- Category Tabs -->
+    <div class="tabs-container" id="tabsContainer">
+      <button class="tab active" data-category="all">
+        <span class="tab-icon"><svg class="ic"><use href="/icons.svg#ic-menu"/></svg></span> All Commands
+      </button>
+      <button class="tab" data-category="camera">
+        <span class="tab-icon"><svg class="ic"><use href="/icons.svg#ic-camera"/></svg></span> Camera
+      </button>
+      <button class="tab" data-category="screen">
+        <span class="tab-icon"><svg class="ic"><use href="/icons.svg#ic-monitor"/></svg></span> Screen
+      </button>
+      <button class="tab" data-category="history">
+        <span class="tab-icon"><svg class="ic"><use href="/icons.svg#ic-history"/></svg></span> History
+      </button>
+      <button class="tab" data-category="devices">
+        <span class="tab-icon"><svg class="ic"><use href="/icons.svg#ic-device"/></svg></span> Devices
+      </button>
+      <button class="tab" data-category="vision">
+        <span class="tab-icon"><svg class="ic"><use href="/icons.svg#ic-eye"/></svg></span> Vision
+      </button>
+      <button class="tab" data-category="memory">
+        <span class="tab-icon"><svg class="ic"><use href="/icons.svg#ic-memory"/></svg></span> Memory
+      </button>
+      <button class="tab" data-category="system">
+        <span class="tab-icon"><svg class="ic"><use href="/icons.svg#ic-bolt"/></svg></span> System
+      </button>
+    </div>
+
+    <!-- Commands Grid -->
+    <div class="commands-grid" id="commandsGrid">
+
+      <!-- Camera On -->
+      <div class="command-card" data-category="camera">
+        <div class="card-header">
+          <div class="card-icon camera"><svg class="ic"><use href="/icons.svg#ic-camera"/></svg></div>
+          <div>
+            <div class="card-title">Activate Camera</div>
+            <span class="card-action">CAMERA_ON</span>
+          </div>
+        </div>
+        <div class="phrases-list">
+          <div class="phrase-item"><span class="phrase-bullet"></span><span class="phrase-text">"Turn on camera"</span>
+          </div>
+          <div class="phrase-item"><span class="phrase-bullet"></span><span class="phrase-text">"Open camera"</span>
+          </div>
+          <div class="phrase-item"><span class="phrase-bullet"></span><span class="phrase-text">"Activate camera"</span>
+          </div>
+          <div class="phrase-item"><span class="phrase-bullet"></span><span class="phrase-text">"Enable camera"</span>
+          </div>
+          <div class="phrase-item"><span class="phrase-bullet"></span><span class="phrase-text">"Start camera"</span>
+          </div>
+          <div class="phrase-item"><span class="phrase-bullet"></span><span class="phrase-text">"Show camera"</span>
+          </div>
+          <div class="phrase-item"><span class="phrase-bullet"></span><span class="phrase-text">"Camera on"</span></div>
+        </div>
+      </div>
+
+      <!-- Camera Off -->
+      <div class="command-card" data-category="camera">
+        <div class="card-header">
+          <div class="card-icon camera"><svg class="ic"><use href="/icons.svg#ic-camera"/></svg></div>
+          <div>
+            <div class="card-title">Deactivate Camera</div>
+            <span class="card-action">CAMERA_OFF</span>
+          </div>
+        </div>
+        <div class="phrases-list">
+          <div class="phrase-item"><span class="phrase-bullet"></span><span class="phrase-text">"Turn off camera"</span>
+          </div>
+          <div class="phrase-item"><span class="phrase-bullet"></span><span class="phrase-text">"Close camera"</span>
+          </div>
+          <div class="phrase-item"><span class="phrase-bullet"></span><span class="phrase-text">"Disable camera"</span>
+          </div>
+          <div class="phrase-item"><span class="phrase-bullet"></span><span class="phrase-text">"Stop camera"</span>
+          </div>
+          <div class="phrase-item"><span class="phrase-bullet"></span><span class="phrase-text">"Camera off"</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Screen Share On -->
+      <div class="command-card" data-category="screen">
+        <div class="card-header">
+          <div class="card-icon screen"><svg class="ic"><use href="/icons.svg#ic-monitor"/></svg></div>
+          <div>
+            <div class="card-title">Start Screen Share</div>
+            <span class="card-action">SCREEN_ON</span>
+          </div>
+        </div>
+        <div class="phrases-list">
+          <div class="phrase-item"><span class="phrase-bullet"></span><span class="phrase-text">"Share my screen"</span>
+          </div>
+          <div class="phrase-item"><span class="phrase-bullet"></span><span class="phrase-text">"Share screen"</span>
+          </div>
+          <div class="phrase-item"><span class="phrase-bullet"></span><span class="phrase-text">"Start screen
+              share"</span></div>
+          <div class="phrase-item"><span class="phrase-bullet"></span><span class="phrase-text">"Screen sharing"</span>
+          </div>
+          <div class="phrase-item"><span class="phrase-bullet"></span><span class="phrase-text">"Show my screen"</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Screen Share Off -->
+      <div class="command-card" data-category="screen">
+        <div class="card-header">
+          <div class="card-icon screen"><svg class="ic"><use href="/icons.svg#ic-monitor"/></svg></div>
+          <div>
+            <div class="card-title">Stop Screen Share</div>
+            <span class="card-action">SCREEN_OFF</span>
+          </div>
+        </div>
+        <div class="phrases-list">
+          <div class="phrase-item"><span class="phrase-bullet"></span><span class="phrase-text">"Stop sharing"</span>
+          </div>
+          <div class="phrase-item"><span class="phrase-bullet"></span><span class="phrase-text">"Stop screen
+              share"</span></div>
+          <div class="phrase-item"><span class="phrase-bullet"></span><span class="phrase-text">"Close screen"</span>
+          </div>
+          <div class="phrase-item"><span class="phrase-bullet"></span><span class="phrase-text">"End screen
+              share"</span></div>
+        </div>
+      </div>
+
+      <!-- History Open -->
+      <div class="command-card" data-category="history">
+        <div class="card-header">
+          <div class="card-icon history"><svg class="ic"><use href="/icons.svg#ic-history"/></svg></div>
+          <div>
+            <div class="card-title">Open Conversation Log</div>
+            <span class="card-action">HISTORY_OPEN</span>
+          </div>
+        </div>
+        <div class="phrases-list">
+          <div class="phrase-item"><span class="phrase-bullet"></span><span class="phrase-text">"Open history"</span>
+          </div>
+          <div class="phrase-item"><span class="phrase-bullet"></span><span class="phrase-text">"Show history"</span>
+          </div>
+          <div class="phrase-item"><span class="phrase-bullet"></span><span class="phrase-text">"Show log"</span></div>
+          <div class="phrase-item"><span class="phrase-bullet"></span><span class="phrase-text">"Open log"</span></div>
+          <div class="phrase-item"><span class="phrase-bullet"></span><span class="phrase-text">"Conversation
+              log"</span></div>
+          <div class="phrase-item"><span class="phrase-bullet"></span><span class="phrase-text">"Show
+              conversation"</span></div>
+        </div>
+      </div>
+
+      <!-- History Close -->
+      <div class="command-card" data-category="history">
+        <div class="card-header">
+          <div class="card-icon history"><svg class="ic"><use href="/icons.svg#ic-history"/></svg></div>
+          <div>
+            <div class="card-title">Close Conversation Log</div>
+            <span class="card-action">HISTORY_CLOSE</span>
+          </div>
+        </div>
+        <div class="phrases-list">
+          <div class="phrase-item"><span class="phrase-bullet"></span><span class="phrase-text">"Close history"</span>
+          </div>
+          <div class="phrase-item"><span class="phrase-bullet"></span><span class="phrase-text">"Hide history"</span>
+          </div>
+          <div class="phrase-item"><span class="phrase-bullet"></span><span class="phrase-text">"Close log"</span></div>
+        </div>
+      </div>
+
+      <!-- Devices -->
+      <div class="command-card" data-category="devices">
+        <div class="card-header">
+          <div class="card-icon devices"><svg class="ic"><use href="/icons.svg#ic-device"/></svg></div>
+          <div>
+            <div class="card-title">Device Settings</div>
+            <span class="card-action">DEVICES_OPEN</span>
+          </div>
+        </div>
+        <div class="phrases-list">
+          <div class="phrase-item"><span class="phrase-bullet"></span><span class="phrase-text">"Show devices"</span>
+          </div>
+          <div class="phrase-item"><span class="phrase-bullet"></span><span class="phrase-text">"Open devices"</span>
+          </div>
+          <div class="phrase-item"><span class="phrase-bullet"></span><span class="phrase-text">"Device settings"</span>
+          </div>
+          <div class="phrase-item"><span class="phrase-bullet"></span><span class="phrase-text">"Change
+              microphone"</span></div>
+          <div class="phrase-item"><span class="phrase-bullet"></span><span class="phrase-text">"Change camera"</span>
+          </div>
+          <div class="phrase-item"><span class="phrase-bullet"></span><span class="phrase-text">"Switch mic"</span>
+          </div>
+          <div class="phrase-item"><span class="phrase-bullet"></span><span class="phrase-text">"Switch camera"</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Sleep / Standby -->
+      <div class="command-card" data-category="system">
+        <div class="card-header">
+          <div class="card-icon sleep"><svg class="ic"><use href="/icons.svg#ic-bolt"/></svg></div>
+          <div>
+            <div class="card-title">Enter Standby Mode</div>
+            <span class="card-action">SLEEP</span>
+          </div>
+        </div>
+        <div class="phrases-list">
+          <div class="phrase-item"><span class="phrase-bullet"></span><span class="phrase-text">"Go to sleep"</span>
+          </div>
+          <div class="phrase-item"><span class="phrase-bullet"></span><span class="phrase-text">"Sleep"</span></div>
+          <div class="phrase-item"><span class="phrase-bullet"></span><span class="phrase-text">"Goodbye Kairos"</span>
+          </div>
+          <div class="phrase-item"><span class="phrase-bullet"></span><span class="phrase-text">"Goodbye"</span></div>
+          <div class="phrase-item"><span class="phrase-bullet"></span><span class="phrase-text">"Good night
+              Kairos"</span></div>
+          <div class="phrase-item"><span class="phrase-bullet"></span><span class="phrase-text">"Good night K"</span>
+          </div>
+          <div class="phrase-item"><span class="phrase-bullet"></span><span class="phrase-text">"Kairos sleep"</span>
+          </div>
+          <div class="phrase-item"><span class="phrase-bullet"></span><span class="phrase-text">"Standby"</span></div>
+        </div>
+      </div>
+
+      <!-- Vision Detection -->
+      <div class="command-card" data-category="vision">
+        <div class="card-header">
+          <div class="card-icon vision"><svg class="ic"><use href="/icons.svg#ic-eye"/></svg></div>
+          <div>
+            <div class="card-title">Vision / Visual Analysis</div>
+            <span class="card-action">VISION_REQUEST</span>
+          </div>
+        </div>
+        <div class="phrases-list">
+          <div class="phrase-item"><span class="phrase-bullet"></span><span class="phrase-text">"What do you see"</span>
+          </div>
+          <div class="phrase-item"><span class="phrase-bullet"></span><span class="phrase-text">"Look at this"</span>
+          </div>
+          <div class="phrase-item"><span class="phrase-bullet"></span><span class="phrase-text">"Describe this"</span>
+          </div>
+          <div class="phrase-item"><span class="phrase-bullet"></span><span class="phrase-text">"Analyze this"</span>
+          </div>
+          <div class="phrase-item"><span class="phrase-bullet"></span><span class="phrase-text">"What am I working
+              on"</span></div>
+          <div class="phrase-item"><span class="phrase-bullet"></span><span class="phrase-text">"Look through my
+              camera"</span></div>
+          <div class="phrase-item"><span class="phrase-bullet"></span><span class="phrase-text">"Identify this"</span>
+          </div>
+        </div>
+        <div class="vision-highlight">
+          <div class="vision-title"><svg class="ic"><use href="/icons.svg#ic-search"/></svg> Detection Logic</div>
+          <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 0.5rem;">Triggers when visual verbs
+            <strong>AND</strong> context keywords are detected:
+        </div>
+        <div class="tag-container">
+          <span class="tag">see</span><span class="tag">look</span><span class="tag">watch</span>
+          <span class="tag">view</span><span class="tag">observe</span><span class="tag">notice</span>
+          <span class="tag">spot</span><span class="tag">identify</span><span class="tag">recognize</span>
+          <span class="tag">analyse</span><span class="tag">describe</span><span class="tag">examine</span>
+          <span class="tag">inspect</span><span class="tag">check</span>
+        </div>
+        <p style="color: var(--text-secondary); font-size: 0.9rem; margin-top: 0.75rem; margin-bottom: 0.5rem;">Context
+          keywords:</p>
+        <div class="tag-container">
+          <span class="tag">camera</span><span class="tag">screen</span><span class="tag">image</span>
+          <span class="tag">photo</span><span class="tag">picture</span><span class="tag">frame</span>
+          <span class="tag">front of me</span><span class="tag">this</span><span class="tag">here</span>
+          <span class="tag">my work</span><span class="tag">my code</span><span class="tag">my circuit</span>
+          <span class="tag">my robot</span><span class="tag">what i</span><span class="tag">what is this</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Memory Recall -->
+    <div class="command-card" data-category="memory">
+      <div class="card-header">
+        <div class="card-icon memory"><svg class="ic"><use href="/icons.svg#ic-memory"/></svg></div>
+        <div>
+          <div class="card-title">Memory Recall</div>
+          <span class="card-action">MEMORY_RECALL</span>
+        </div>
+      </div>
+      <div class="phrases-list">
+        <div class="phrase-item"><span class="phrase-bullet"></span><span class="phrase-text">"What do you
+            remember"</span></div>
+        <div class="phrase-item"><span class="phrase-bullet"></span><span class="phrase-text">"What do you know about
+            me"</span></div>
+        <div class="phrase-item"><span class="phrase-bullet"></span><span class="phrase-text">"What have I told
+            you"</span></div>
+        <div class="phrase-item"><span class="phrase-bullet"></span><span class="phrase-text">"Show my memories"</span>
+        </div>
+        <div class="phrase-item"><span class="phrase-bullet"></span><span class="phrase-text">"List your
+            memories"</span></div>
+        <div class="phrase-item"><span class="phrase-bullet"></span><span class="phrase-text">"What do you
+            recall"</span></div>
+        <div class="phrase-item"><span class="phrase-bullet"></span><span class="phrase-text">"Open memory"</span></div>
+        <div class="phrase-item"><span class="phrase-bullet"></span><span class="phrase-text">"Show memory"</span></div>
+      </div>
+    </div>
+
+    <!-- Settings -->
+    <div class="command-card" data-category="system">
+      <div class="card-header">
+        <div class="card-icon settings"><svg class="ic"><use href="/icons.svg#ic-gear"/></svg></div>
+        <div>
+          <div class="card-title">Open Settings</div>
+          <span class="card-action">SETTINGS_OPEN</span>
+        </div>
+      </div>
+      <div class="phrases-list">
+        <div class="phrase-item"><span class="phrase-bullet"></span><span class="phrase-text">"Open settings"</span>
+        </div>
+        <div class="phrase-item"><span class="phrase-bullet"></span><span class="phrase-text">"Show settings"</span>
+        </div>
+        <div class="phrase-item"><span class="phrase-bullet"></span><span class="phrase-text">"Settings"</span></div>
+        <div class="phrase-item"><span class="phrase-bullet"></span><span class="phrase-text">"Change settings"</span>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+
+
+  <!-- Footer -->
+  <footer class="footer">
+    <p><span class="footer-brand">KAIROS</span> Voice Assistant &mdash; Command Reference v1.0</p>
+    <p style="margin-top: 0.5rem;">Say any phrase exactly as shown to trigger the corresponding action.</p>
+  </footer>
+  </div>
+
+  <!-- Toast -->
+  <div class="toast" id="toast">Code copied to clipboard</div>
+
+  <script>
+    // Generate background particles
+    const particlesContainer = document.getElementById('particles');
+    for (let i = 0; i < 30; i++) {
+      const particle = document.createElement('div');
+      particle.className = 'particle';
+      particle.style.left = Math.random() * 100 + '%';
+      particle.style.top = Math.random() * 100 + '%';
+      particle.style.animationDelay = Math.random() * 15 + 's';
+      particle.style.animationDuration = (10 + Math.random() * 10) + 's';
+      particlesContainer.appendChild(particle);
+    }
+
+    // Tab filtering
+    const tabs = document.querySelectorAll('.tab');
+    const cards = document.querySelectorAll('.command-card');
+
+    tabs.forEach(tab => {
+      tab.addEventListener('click', () => {
+        tabs.forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+
+        const category = tab.dataset.category;
+
+        cards.forEach(card => {
+          if (category === 'all' || card.dataset.category === category) {
+            card.classList.remove('hidden');
+            card.style.animation = 'none';
+            card.offsetHeight; // trigger reflow
+            card.style.animation = 'fadeInUp 0.5s ease forwards';
+          } else {
+            card.classList.add('hidden');
+          }
+        });
+      });
+    });
+
+    // Search functionality
+    const searchBox = document.getElementById('searchBox');
+
+    searchBox.addEventListener('input', (e) => {
+      const query = e.target.value.toLowerCase();
+
+      cards.forEach(card => {
+        const text = card.textContent.toLowerCase();
+        if (text.includes(query)) {
+          card.classList.remove('hidden');
+        } else {
+          card.classList.add('hidden');
+        }
+      });
+    });
+
+    // Keyboard shortcut for search
+    document.addEventListener('keydown', (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+        e.preventDefault();
+        searchBox.focus();
+      }
+    });
+
+    // Copy code functionality
+    function copyCode() {
+      const codeText = document.getElementById('codeBlock').innerText;
+      navigator.clipboard.writeText(codeText).then(() => {
+        showToast('Code copied to clipboard');
+      });
+    }
+
+    function showToast(message) {
+      const toast = document.getElementById('toast');
+      toast.textContent = message;
+      toast.classList.add('show');
+      setTimeout(() => toast.classList.remove('show'), 2500);
+    }
+
+    // Click on phrase to copy
+    document.querySelectorAll('.phrase-item').forEach(item => {
+      item.addEventListener('click', () => {
+        const text = item.querySelector('.phrase-text').textContent.replace(/"/g, '');
+        navigator.clipboard.writeText(text).then(() => {
+          showToast('"' + text + '" copied');
+        });
+      });
+    });
+  </script>
+
+  <script>
+    /* Arrived from Settings? Send Back to Settings (where they clicked),
+       not the homepage — detected via the same-origin referrer. */
+    (function () {
+      try {
+        var ref = document.referrer;
+        if (!ref) return;
+        var u = new URL(ref);
+        if (u.origin !== location.origin) return;
+        if (!/(^|\/)settings\b/i.test(u.pathname)) return;
+        var back = document.getElementById('manualBackLink');
+        if (!back) return;
+        back.setAttribute('href', '/settings');
+        back.textContent = '← BACK TO SETTINGS';
+      } catch (e) { /* keep the default Home link */ }
+    })();
+  </script>
+</body>
+
+</html>

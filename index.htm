@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Kairos</title>
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png">
+  <link rel="apple-touch-icon" href="/apple-touch-icon-180.png">
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap"
+    rel="stylesheet">
+  <!-- Design system: tokens → atmosphere → components, then this page's own style.css.
+       style.css is linked LAST so its HUD rules win; the shared files only add tokens
+       and reusable classes. Root-absolute hrefs stay correct under the /app/new route. -->
+  <link rel="stylesheet" href="/design-tokens.css">
+  <link rel="stylesheet" href="/background.css">
+  <link rel="stylesheet" href="/components.css">
+  <link rel="stylesheet" href="style.css">
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#0D0F16">
+
+  <style>
+    html,
+    body {
+      background: var(--bg-base-start, #06070B) !important;
+      margin: 0;
+      padding: 0;
+    }
+
+    #video-layer {
+      background: var(--bg-base-start, #06070B) !important;
+      opacity: 1 !important;
+    }
+  </style>
+</head>
+
+<body>
+  <!-- Universal dark atmosphere: gradient + faint grain + soft accent glow.
+       Sits at z-index:-10, behind the (alpha:true) three.js canvas so the
+       particle field floats over it. -->
+  <div class="kx-bg" aria-hidden="true"></div>
+
+  <script src="Onboarding.js"></script>
+
+  <!-- VIDEO INTRO -->
+  <div id="video-layer">
+    <video id="intro-video" src="vid.mp4" playsinline autoplay muted></video>
+    <div id="fallback">
+      <div>▶ INITIALIZING SYSTEM CORE...</div>
+      <div>▶ LOADING NEURAL PROTOCOLS...</div>
+      <div>▶ CALIBRATING INTERFACE MATRIX...</div>
+      <div>▶ ACTIVATING SENSORY ARRAYS...</div>
+      <div>▶ ONLINE</div>
+    </div>
+  </div>
+  <button id="skip-btn">[ SKIP INTRO ]</button>
+
+  <!-- ATMOSPHERE
+       The shared .kx-bg above (gradient + grain + accent glow) is the only
+       background, matching every other page. The old WebGL starfield canvas,
+       extra grain layer, scanline sweep and HUD corner brackets were the
+       retired "sci-fi HUD" atmosphere and have been removed. -->
+
+  <!-- LEFT HUD — CLOCK -->
+  <div id="hud-left">
+    <div id="hud-time">00:00:00</div>
+    <div class="hud-divider"></div>
+    <div id="hud-date"></div>
+  </div>
+
+  <!-- BOTTOM HUD DOCK — one calm glass bar holding every utility control.
+       The two groups #hud-right-top / #hud-right-bottom are still here (the
+       JS that toggles their `.show` reveal and wires each button by id is
+       untouched), and every button keeps its id + handler — but the buttons
+       are now grouped by FUNCTION so phones can split them cleanly:
+       #hud-right-bottom holds the three everyday controls (Text · Reminders
+       · Settings); #hud-right-top the six occasional ones (Camera · Screen ·
+       Device · Log · Memory · File). On desktop `display:contents` + `order`
+       (style.css) still flow all nine into one centered row in the original
+       CAM·SCR·DEV·LOG·TXT·REM·MEM·FILE·SET sequence. On phones the row
+       becomes a 3-button bar plus a ••• control that fades a glass sheet of
+       the other six in above it.
+
+       That ••• sheet is PURE CSS: a hidden checkbox (#hud-more-toggle)
+       flipped by <label> elements — so no JavaScript is added and no
+       existing handler is touched. Button TEXT is not read by JS, so the
+       captions are safe. -->
+  <div id="hud-dock" class="kx-hud-dock">
+
+    <!-- Pure-CSS open/close state for the phone "more" sheet (no JS).
+         Kept first so the :checked ~ sibling selectors can reach the sheet
+         and the scrim below. Hidden on desktop; off-screen but keyboard-
+         focusable on phones. -->
+    <input type="checkbox" id="hud-more-toggle" class="kx-more-toggle" tabindex="-1">
+
+    <!-- ••• trigger — phones only. A <label> (not a <button>) so it flips
+         the checkbox above without script; styled as a dock button. -->
+    <label for="hud-more-toggle" id="hud-more-btn" class="kx-dock-btn"
+           aria-label="More controls" aria-controls="hud-right-top">
+      <svg class="ic" aria-hidden="true"><use href="/icons.svg#ic-dots"/></svg><span>MORE</span>
+    </label>
+
+    <!-- tap-away scrim — phones only. A <label> so tapping outside closes. -->
+    <label for="hud-more-toggle" class="kx-more-backdrop" aria-hidden="true"></label>
+
+    <!-- PRIMARY — Text · Reminders · Settings (the phone bar) -->
+    <div id="hud-right-bottom">
+      <button id="txt-btn" class="kx-dock-btn"><svg class="ic" aria-hidden="true"><use href="/icons.svg#ic-text"/></svg><span>TXT</span></button>
+      <button id="rem-btn" class="kx-dock-btn"><svg class="ic" aria-hidden="true"><use href="/icons.svg#ic-bell"/></svg><span>REM</span></button>
+      <button id="set-btn" class="kx-dock-btn"><svg class="ic" aria-hidden="true"><use href="/icons.svg#ic-gear"/></svg><span>SET</span></button>
+    </div>
+
+    <!-- SECONDARY — Camera · Screen · Device · Log · Memory · File (the sheet) -->
+    <div id="hud-right-top">
+      <button id="cam-btn" class="kx-dock-btn"><svg class="ic" aria-hidden="true"><use href="/icons.svg#ic-camera"/></svg><span>CAM</span></button>
+      <button id="screen-btn" class="kx-dock-btn"><svg class="ic" aria-hidden="true"><use href="/icons.svg#ic-screen"/></svg><span>SCR</span></button>
+      <button id="device-btn" class="kx-dock-btn"><svg class="ic" aria-hidden="true"><use href="/icons.svg#ic-device"/></svg><span>DEV</span></button>
+      <button id="hist-btn" class="kx-dock-btn"><svg class="ic" aria-hidden="true"><use href="/icons.svg#ic-history"/></svg><span>LOG</span></button>
+      <button id="mem-btn" class="kx-dock-btn"><svg class="ic" aria-hidden="true"><use href="/icons.svg#ic-memory"/></svg><span>MEM</span></button>
+      <button id="file-btn" class="kx-dock-btn"><svg class="ic" aria-hidden="true"><use href="/icons.svg#ic-file"/></svg><span>FILE</span></button>
+    </div>
+  </div>
+
+  <!-- HISTORY PANEL -->
+  <div id="history-panel">
+    <div class="hist-header">
+      <span><svg class="ic" aria-hidden="true"><use href="/icons.svg#ic-history"/></svg> CONVERSATION LOG</span>
+      <button class="hist-close" onclick="toggleHistory()" aria-label="Close conversation log"><svg class="ic" aria-hidden="true"><use href="/icons.svg#ic-x"/></svg></button>
+    </div>
+    <div class="hist-actions">
+      <button class="hist-action" onclick="startNewConversation()"><svg class="ic ic--sm" aria-hidden="true"><use href="/icons.svg#ic-plus"/></svg><span>NEW CHAT</span></button>
+      <button class="hist-action" onclick="toggleConversationList()" id="convListToggle"><svg class="ic ic--sm" aria-hidden="true"><use href="/icons.svg#ic-menu"/></svg><span>ALL CHATS</span></button>
+    </div>
+    <div id="conversation-list" style="display:none;"></div>
+    <div id="history-list"></div>
+  </div>
+
+  <!-- CAMERA FEED -->
+  <video id="cam-feed" autoplay playsinline></video>
+
+  <!-- MAIN INTERFACE -->
+  <div id="interface">
+
+    <div class="hud-outer">
+      <div class="ring r1"></div>
+      <div class="ring r2"></div>
+      <div class="ring r3"></div>
+      <div class="orb" id="orb"></div>
+    </div>
+
+    <p id="greeting"></p>
+    <p id="status"></p>
+
+    <!-- MIC MUTE (M1)
+         Placed next to the orb rather than in the right-hand HUD stack,
+         which already overflows on phones. This is the one control a
+         user needs to reach instantly in a noisy room.
+
+         Inline SVG rather than 🎙/🔇 emoji: emoji render as a different
+         glyph on every OS (and as full-colour Apple art on iOS), cannot
+         inherit currentColor, and sit off-centre in a circular button.
+         Both icons ship in the markup; CSS swaps which one is visible
+         so there is no flicker or re-parse on toggle. -->
+    <button id="mic-mute-btn" type="button"
+            aria-pressed="false" aria-label="Mute microphone" title="Mute microphone">
+      <svg class="mic-icon mic-on" viewBox="0 0 24 24" fill="none" aria-hidden="true"
+           stroke="currentColor" stroke-width="1.8"
+           stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 2a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/>
+        <path d="M19 10v1a7 7 0 0 1-14 0v-1"/>
+        <line x1="12" y1="18" x2="12" y2="22"/>
+        <line x1="8" y1="22" x2="16" y2="22"/>
+      </svg>
+      <svg class="mic-icon mic-off" viewBox="0 0 24 24" fill="none" aria-hidden="true"
+           stroke="currentColor" stroke-width="1.8"
+           stroke-linecap="round" stroke-linejoin="round">
+        <path d="M9 9V5a3 3 0 0 1 5.94-.6"/>
+        <path d="M15 11.6V11"/>
+        <path d="M19 10v1a7 7 0 0 1-10.7 5.98"/>
+        <path d="M5 10v1a7 7 0 0 0 2.05 4.95"/>
+        <line x1="12" y1="18" x2="12" y2="22"/>
+        <line x1="8" y1="22" x2="16" y2="22"/>
+        <line x1="3" y1="3" x2="21" y2="21"/>
+      </svg>
+    </button>
+  </div>
+
+  <!-- BOTTOM STRIP — live network-signal indicator.
+       Setings.js (updateSignalDisplay) finds the span containing "NET:" and
+       replaces its contents with signal bars + a quality label on load, so
+       this span is FUNCTIONAL and must stay (it is also the mount point that
+       becomes #signal-span). #strip itself is referenced unguarded by
+       script.js, so the wrapper must stay too. The static "SYS: ONLINE" label
+       and the duplicate clock (the live clock still shows in #hud-left) were
+       drift and have been removed. -->
+  <div class="data-strip" id="strip">
+    <span>NET: ACTIVE</span>
+  </div>
+
+
+  <!-- LOAD ORDER MATTERS
+       brain.js defines askKairos / askKairosStream.
+       Memory, Multilang and Filereader each WRAP those functions, so
+       brain.js must come first — otherwise their retry timers race.
+       B12 FIX: the apple-touch-icon used to point at logo.png, which
+       does not exist in this project. -->
+  <script src="brain.js"></script>
+  <script src="script.js"></script>
+  <script src="ai.js"></script>
+  <script src="weather.js"></script>
+  <script src="Memory.js"></script>
+  <script src="Multilang.js"></script>
+  <script src="Filereader.js"></script>
+  <script src="Setings.js"></script>
+  <script src="text.js"></script>
+  <script src="dropdown.js"></script>
+
+  <script>
+    // ── SERVER CONFIG BOOTSTRAP (C2/C5/C6) ──
+    // Wake words, shortcuts, limits and UI copy now come from the server
+    // so the admin panel can change them without a deploy. Previously
+    // persona.json held a wake_word that script.js completely ignored,
+    // so the admin editor wrote to a field nothing ever read.
+    window.KAIROS_CONFIG_READY = (async function () {
+      try {
+        const r = await fetch('/api/config/public');
+        if (!r.ok) return null;
+        const cfg = await r.json();
+        window.KAIROS_CONFIG    = cfg;
+        window.KAIROS_WAKE      = cfg.wake      || {};
+        window.KAIROS_SHORTCUTS = cfg.shortcuts || {};
+        window.KAIROS_UI        = cfg.ui        || {};
+        window.KAIROS_LIMITS    = cfg.limits    || {};
+        return cfg;
+      } catch (e) {
+        // Offline or backend down — modules fall back to their built-in
+        // defaults rather than breaking.
+        console.warn('Config fetch failed, using defaults:', e);
+        return null;
+      }
+    })();
+
+    // ── Live clock + date ──
+    setInterval(() => {
+      const now = new Date();
+      const timeEl = document.getElementById('hud-time');
+      const dateEl = document.getElementById('hud-date');
+      const clockEl = document.getElementById('clock');
+      if (timeEl) timeEl.textContent = now.toTimeString().slice(0, 8);
+      if (clockEl) clockEl.textContent = now.toTimeString().slice(0, 8);
+      if (dateEl) dateEl.textContent = now.toDateString().toUpperCase();
+    }, 1000);
+
+    // ── Show HUD after interface reveals ──
+    document.addEventListener('DOMContentLoaded', () => {
+      const observer = new MutationObserver(() => {
+        if (document.getElementById('interface').classList.contains('visible')) {
+          document.getElementById('hud-left').classList.add('show');
+          document.getElementById('hud-right-top').classList.add('show');
+          document.getElementById('hud-right-bottom').classList.add('show');
+          observer.disconnect();
+        }
+      });
+      observer.observe(document.getElementById('interface'), { attributes: true });
+    });
+
+    // ── Wire ALL HUD buttons after load ──
+    window.addEventListener('load', () => {
+      document.getElementById('cam-btn')?.addEventListener('click', () => toggleCamera());
+      document.getElementById('screen-btn')?.addEventListener('click', () => toggleScreenShare());
+      document.getElementById('device-btn')?.addEventListener('click', () => toggleDevicePanel());
+      document.getElementById('hist-btn')?.addEventListener('click', () => toggleHistory());
+      document.getElementById('rem-btn')?.addEventListener('click', () => window.kairosReminders?.togglePanel());
+      document.getElementById('mem-btn')?.addEventListener('click', () => window.kairosMemory?.togglePanel());
+      document.getElementById('file-btn')?.addEventListener('click', () => window.kairosFiles?.togglePanel());
+      document.getElementById('set-btn')?.addEventListener('click', () => window.openKairosSettings?.());
+      document.getElementById('txt-btn')?.addEventListener('click', () => window.kairosTextMode?.togglePanel());
+
+      // M1 — mic mute
+      document.getElementById('mic-mute-btn')?.addEventListener('click', () => {
+        window.kairosMic?.toggle();
+      });
+    });
+
+    // ── PWA Service Worker ──
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js').catch(() => { });
+    }
+  </script>
+</body>
+
+</html>

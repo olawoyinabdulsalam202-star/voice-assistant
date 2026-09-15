@@ -1,0 +1,1333 @@
+/* ════════════════════════════════════════════════════════════════════
+   KAIROS — FLAGSHIP HUD  (index.htm)
+   ────────────────────────────────────────────────────────────────────
+   Restyled onto the shared design system. This file loads AFTER
+   design-tokens.css / background.css / components.css, so it only needs
+   to paint the HUD itself — every colour/radius/blur/motion value comes
+   from design-tokens.css via var().
+
+   The old cyan `:root` overrides were REMOVED so the token file governs
+   the palette. Setings.js still writes --cyan / --cyan-dim / --ring-color
+   at runtime (theme switch + orb-colour picker); those names live in
+   design-tokens.css now and default to the new accent, so the picker and
+   theme switch keep working unchanged.
+   ════════════════════════════════════════════════════════════════════ */
+
+html {
+  background: var(--bg-base-start);
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  background: var(--bg-base-start);
+  overflow: hidden;
+  font-family: var(--font-ui);
+  color: var(--text-primary);
+  cursor: default;
+  /* B6: 100vh is taller than the visible area on mobile Safari/Chrome
+     because of the address bar, which pushed the bottom data strip
+     under the browser chrome. dvh tracks the actual viewport. */
+  min-height: 100vh;
+  min-height: 100dvh;
+  min-width: 100vw;
+}
+
+@media (hover: none) {
+  * { -webkit-tap-highlight-color: transparent; }
+}
+
+/* ── VIDEO INTRO ── */
+#video-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: var(--bg-base-start);
+  transition: opacity 1.8s ease;
+  will-change: opacity;
+}
+
+#video-layer.fade-out {
+  opacity: 0;
+  pointer-events: none;
+}
+
+#intro-video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  background: var(--bg-base-start);
+}
+
+#fallback {
+  position: absolute;
+  inset: 0;
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  letter-spacing: 0.25em;
+  color: var(--text-secondary);
+  background: var(--bg-base-start);
+}
+
+#fallback.show {
+  display: flex;
+}
+
+#fallback div {
+  opacity: 0;
+  animation: fadeLine 0.5s ease forwards;
+}
+
+#fallback div:nth-child(1) {
+  animation-delay: 0.4s;
+}
+
+#fallback div:nth-child(2) {
+  animation-delay: 1.1s;
+}
+
+#fallback div:nth-child(3) {
+  animation-delay: 1.8s;
+}
+
+#fallback div:nth-child(4) {
+  animation-delay: 2.5s;
+}
+
+#fallback div:nth-child(5) {
+  animation-delay: 3.2s;
+  color: var(--accent-end);
+  font-size: 1rem;
+  letter-spacing: 0.5em;
+}
+
+#skip-btn {
+  position: fixed;
+  bottom: 28px;
+  right: 28px;
+  z-index: 110;
+  background: var(--glass-fill);
+  border: 1px solid var(--glass-border);
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  letter-spacing: 0.2em;
+  padding: 9px 18px;
+  border-radius: var(--glass-radius-pill);
+  cursor: pointer;
+  opacity: 0;
+  pointer-events: none;
+  -webkit-backdrop-filter: blur(var(--glass-blur-sm));
+  backdrop-filter: blur(var(--glass-blur-sm));
+  transition: opacity 0.5s, background var(--dur-fast) var(--ease-out),
+              color var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out);
+}
+
+#skip-btn.show {
+  opacity: 1;
+  pointer-events: all;
+}
+
+#skip-btn:hover {
+  background: var(--glass-fill-strong);
+  color: var(--text-primary);
+  border-color: var(--glass-highlight);
+}
+
+/* ── ATMOSPHERE ──
+   The WebGL starfield canvas, the extra grain layer, the scanline sweep and
+   the HUD corner brackets were the retired "sci-fi HUD" atmosphere. Their
+   elements were removed from index.htm, so the shared .kx-bg (gradient +
+   grain + accent glow) is the only background now — matching every other
+   page in the app (see the same retirement on settings.htm / Admn.html). */
+
+/* ── LEFT HUD — CLOCK ── */
+#hud-left {
+  position: fixed;
+  left: 28px;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 11;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  opacity: 0;
+  transition: opacity 2s ease;
+  pointer-events: none;
+}
+
+#hud-left.show {
+  opacity: 1;
+}
+
+.hud-divider {
+  width: 1px;
+  height: 60px;
+  background: linear-gradient(to bottom, transparent, var(--glass-border), transparent);
+  margin: 4px auto;
+}
+
+.hud-divider-h {
+  height: 1px;
+  width: 28px;
+  background: linear-gradient(to right, transparent, var(--glass-border), transparent);
+  margin: 2px auto;
+}
+
+/* De-drifted: the clock is light-weight floating text now — no accent glow,
+   no heavy display weight, no monospace terminal treatment. The #hud-sys
+   ("SYS ONLINE") readout was static drift and its element was removed. */
+#hud-time {
+  font-family: var(--font-ui);
+  font-size: 1.05rem;
+  font-weight: 300;
+  letter-spacing: 0.08em;
+  color: var(--text-secondary);
+}
+
+#hud-date {
+  font-family: var(--font-ui);
+  font-size: 0.62rem;
+  font-weight: 300;
+  letter-spacing: 0.14em;
+  color: var(--text-tertiary);
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   BOTTOM HUD DOCK
+   ────────────────────────────────────────────────────────────────────
+   One calm glass pill, centered at the bottom, holding every utility
+   control. The two original groups (#hud-right-top / #hud-right-bottom)
+   are kept in the markup verbatim — JS still toggles their `.show` reveal
+   and wires each button by id — but they become `display:contents` so
+   their nine buttons flow into this single row. The dock reveals via
+   `:has(.show)` (with an @supports fallback for browsers without :has).
+   ════════════════════════════════════════════════════════════════════ */
+#hud-dock {
+  position: fixed;
+  left: 50%;
+  bottom: 20px;
+  transform: translateX(-50%);
+  z-index: 12;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  max-width: min(680px, 94vw);
+  padding: 8px 10px;
+  background: rgba(13, 15, 22, 0.55);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--glass-radius-pill);
+  -webkit-backdrop-filter: blur(var(--glass-blur-sm)) saturate(140%);
+  backdrop-filter: blur(var(--glass-blur-sm)) saturate(140%);
+  box-shadow: var(--shadow-card), inset 0 1px 0 var(--glass-highlight);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 1.2s var(--ease-out);
+}
+
+/* both inner groups collapse so their buttons join the dock row */
+#hud-dock #hud-right-top,
+#hud-dock #hud-right-bottom {
+  display: contents;
+}
+
+/* the little inter-button dividers make no sense in a horizontal pill */
+#hud-dock .hud-divider-h {
+  display: none;
+}
+
+/* revealed once the interface shows — JS adds .show to the groups */
+#hud-dock:has(.show) {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+@supports not selector(:has(*)) {
+  #hud-dock {
+    opacity: 1;
+    pointer-events: auto;
+  }
+}
+
+/* ── MOBILE "MORE" SHEET MACHINERY (behaviour lives in @media 480px) ──
+   On phones the dock splits into a three-button bar + a ••• sheet holding
+   the other six controls; the open state is a hidden checkbox flipped by
+   <label>s, so no JavaScript is involved. On desktop none of that shows and
+   all nine buttons stay in one row. Because the buttons are grouped by
+   FUNCTION across the two wrappers (for the phone split), `order` re-locks
+   the original CAM·SCR·DEV·LOG·TXT·REM·MEM·FILE·SET sequence here so the
+   desktop dock is pixel-identical to before. */
+#hud-more-toggle,
+#hud-more-btn,
+.kx-more-backdrop {
+  display: none;
+}
+
+#hud-dock #cam-btn    { order: 1; }
+#hud-dock #screen-btn { order: 2; }
+#hud-dock #device-btn { order: 3; }
+#hud-dock #hist-btn   { order: 4; }
+#hud-dock #txt-btn    { order: 5; }
+#hud-dock #rem-btn    { order: 6; }
+#hud-dock #mem-btn    { order: 7; }
+#hud-dock #file-btn   { order: 8; }
+#hud-dock #set-btn    { order: 9; }
+
+/* ── DOCK BUTTONS (all nine keep their ids + JS handlers) ── */
+.kx-dock-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  min-width: 52px;
+  min-height: 48px;
+  padding: 6px 8px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--glass-radius-md);
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: 0.56rem;
+  letter-spacing: 0.14em;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  transition: background var(--dur-fast) var(--ease-out),
+              color var(--dur-fast) var(--ease-out),
+              border-color var(--dur-fast) var(--ease-out),
+              transform var(--dur-fast) var(--ease-out);
+}
+
+.kx-dock-btn .ic {
+  width: 20px;
+  height: 20px;
+  color: inherit;
+}
+
+.kx-dock-btn span {
+  display: block;
+}
+
+.kx-dock-btn:hover {
+  background: var(--glass-fill);
+  color: var(--text-primary);
+  border-color: var(--glass-border-soft);
+}
+
+/* B5: touch devices never fire :hover — this is the tap feedback twin. */
+.kx-dock-btn:active {
+  background: var(--glass-fill-strong);
+  color: var(--text-primary);
+  transform: scale(0.94);
+}
+
+.kx-dock-btn:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+/* Active/engaged control — one calm accent for all nine (camera, screen
+   and device no longer each get their own hue; the icon + the panel that
+   opens carry that meaning now). */
+#cam-btn.active,
+#screen-btn.active,
+#device-btn.active,
+#hist-btn.active,
+#rem-btn.active,
+#mem-btn.active,
+#file-btn.active,
+#set-btn.active,
+#txt-btn.active {
+  color: var(--accent-end);
+  border-color: rgba(var(--accent-end-rgb), 0.5);
+  background: rgba(var(--accent-end-rgb), 0.12);
+  box-shadow: 0 0 16px rgba(var(--accent-end-rgb), 0.22);
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   HISTORY PANEL
+   Fade + scale-from-96%, anchored to the right edge — never parked
+   off-screen. JS still toggles the `.open` class (toggleHistory()).
+   ════════════════════════════════════════════════════════════════════ */
+#history-panel {
+  position: fixed;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: min(340px, 92vw);
+  z-index: 50;
+  background: rgba(13, 15, 22, 0.72);
+  border-left: 1px solid var(--glass-border);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(140%);
+  backdrop-filter: blur(var(--glass-blur)) saturate(140%);
+  box-shadow: var(--shadow-panel);
+  display: flex;
+  flex-direction: column;
+  padding: 24px 0;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateX(8px) scale(0.96);
+  transform-origin: right center;
+  pointer-events: none;
+  transition: opacity var(--dur-panel) var(--ease-glass),
+              transform var(--dur-panel) var(--ease-glass),
+              visibility 0s linear var(--dur-panel);
+}
+
+#history-panel.open {
+  opacity: 1;
+  visibility: visible;
+  transform: translateX(0) scale(1);
+  pointer-events: auto;
+  transition: opacity var(--dur-panel) var(--ease-glass),
+              transform var(--dur-panel) var(--ease-glass);
+}
+
+.hist-header {
+  font-family: var(--font-display);
+  font-size: 0.7rem;
+  letter-spacing: 0.28em;
+  color: var(--text-primary);
+  padding: 0 20px 16px;
+  border-bottom: 1px solid var(--glass-border-soft);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.hist-header span {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.hist-header .ic {
+  color: var(--accent-end);
+}
+
+.hist-close {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 4px;
+  display: inline-flex;
+  border-radius: var(--glass-radius-sm);
+  transition: color var(--dur-fast) var(--ease-out), background var(--dur-fast) var(--ease-out);
+}
+
+.hist-close:hover {
+  color: var(--text-primary);
+  background: var(--glass-fill-weak);
+}
+
+.hist-close .ic {
+  width: 16px;
+  height: 16px;
+}
+
+/* New Chat / All Chats row (was two inline-styled buttons) */
+.hist-actions {
+  display: flex;
+  gap: 8px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--glass-border-soft);
+}
+
+.hist-action {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 9px 10px;
+  background: var(--glass-fill);
+  border: 1px solid var(--glass-border-soft);
+  border-radius: var(--glass-radius-md);
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.12em;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background var(--dur-fast) var(--ease-out),
+              color var(--dur-fast) var(--ease-out),
+              border-color var(--dur-fast) var(--ease-out),
+              transform var(--dur-fast) var(--ease-out);
+}
+
+.hist-action .ic {
+  width: 14px;
+  height: 14px;
+  color: var(--accent-end);
+}
+
+.hist-action:hover {
+  background: var(--glass-fill-strong);
+  color: var(--text-primary);
+  border-color: var(--glass-border);
+}
+
+.hist-action:active {
+  transform: scale(0.97);
+}
+
+.hist-action:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+#conversation-list {
+  padding: 0 16px;
+}
+
+#history-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--glass-fill-strong) transparent;
+}
+
+.hist-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.hist-role {
+  font-family: var(--font-mono);
+  font-size: 0.55rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+
+.hist-kairos .hist-role {
+  color: var(--accent-end);
+}
+
+.hist-time {
+  font-family: var(--font-mono);
+  font-size: 0.5rem;
+  letter-spacing: 0.1em;
+  color: var(--text-tertiary);
+}
+
+.hist-text {
+  font-size: 0.78rem;
+  line-height: 1.6;
+  color: var(--text-secondary);
+  border-left: 2px solid var(--glass-border);
+  padding-left: 10px;
+  margin-top: 2px;
+}
+
+.hist-kairos .hist-text {
+  color: var(--text-primary);
+  border-left-color: rgba(var(--accent-end-rgb), 0.4);
+}
+
+/* ── CAMERA FEED ── */
+#cam-feed {
+  position: fixed;
+  bottom: 80px;
+  left: 28px;
+  width: 200px;
+  height: 150px;
+  border: 1px solid var(--glass-border);
+  display: none;
+  z-index: 15;
+  object-fit: cover;
+  box-shadow: var(--shadow-card);
+  border-radius: var(--glass-radius-md);
+}
+
+/* ── MAIN INTERFACE ── */
+#interface {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 2s ease;
+  pointer-events: none;
+  background: transparent;
+}
+
+#interface.visible {
+  opacity: 1;
+  pointer-events: all;
+}
+
+/* The gradient-clip "K.A.I.R.O.S" wordmark (.title) and the backronym
+   (.subtitle) were removed — nothing competes with the orb, and the real
+   product name is simply "Kairos". Their elements are gone from index.htm. */
+
+/* ── HUD RING ── */
+.hud-outer {
+  position: relative;
+  width: 270px;
+  height: 270px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 40px;
+}
+
+.ring {
+  position: absolute;
+  border-radius: 50%;
+}
+
+.r1 {
+  width: 270px;
+  height: 270px;
+  border: 1px solid var(--glass-border-soft);
+  animation: spin 18s linear infinite;
+}
+
+/* r2 uses --ring-color set by Setings.js orb-colour picker */
+.r2 {
+  width: 248px;
+  height: 248px;
+  border-top: 2px solid var(--ring-color, var(--accent-end));
+  border-right: 2px solid transparent;
+  border-bottom: 2px solid transparent;
+  border-left: 2px solid transparent;
+  animation: spin 2.5s linear infinite;
+  transition: border-top-color 0.5s ease;
+}
+
+.r3 {
+  width: 230px;
+  height: 230px;
+  border-bottom: 1px solid rgba(var(--accent-end-rgb), 0.25);
+  border-top: 1px solid transparent;
+  border-left: 1px solid transparent;
+  border-right: 1px solid transparent;
+  animation: spin 6s linear infinite reverse;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ── ORB ──
+   Default standby look — the signature indigo→cyan sphere. Setings.js
+   applyOrbState() overrides `background` inline at runtime per state
+   (standby/listening/thinking/speaking/error) and the picker retints it,
+   so this is the pre-JS / fallback appearance and must already be on-brand. */
+.orb {
+  width: 125px;
+  height: 125px;
+  border-radius: 50%;
+  position: relative;
+  z-index: 2;
+  cursor: pointer;
+
+  background: radial-gradient(circle at 36% 30%,
+      rgba(255, 255, 255, 0.55) 0%,
+      rgba(var(--accent-end-rgb), 0.95) 30%,
+      rgba(var(--accent-start-rgb), 0.92) 68%,
+      #232a52 100%);
+  box-shadow:
+    0 0 45px rgba(var(--accent-end-rgb), 0.55),
+    0 0 90px rgba(var(--accent-start-rgb), 0.35),
+    0 0 140px rgba(var(--accent-start-rgb), 0.18),
+    inset 0 0 38px rgba(255, 255, 255, 0.14);
+
+  /* Smooth color transitions between states */
+  transition: background 0.45s ease, box-shadow 0.45s ease, transform 0.15s ease;
+}
+
+.orb:hover {
+  transform: scale(1.06);
+}
+
+.orb:active {
+  transform: scale(0.95);
+}
+
+/* ── ORB STATE ANIMATIONS ── */
+/* Injected by Setings.js via <style id="kairos-orb-styles"> */
+/* Fallback CSS animations as backup */
+
+.orb.orb-standby {
+  animation: orb-standby-fb 3s ease-in-out infinite;
+}
+
+.orb.orb-listening {
+  animation: orb-listening-fb 0.6s ease-in-out infinite !important;
+}
+
+.orb.orb-thinking {
+  animation: orb-thinking-fb 1.2s ease-in-out infinite !important;
+}
+
+.orb.orb-speaking {
+  animation: orb-speaking-fb 0.9s ease-in-out infinite !important;
+}
+
+.orb.orb-error {
+  animation: orb-error-fb 0.5s ease-in-out infinite !important;
+}
+
+@keyframes orb-standby-fb {
+
+  0%,
+  100% {
+    transform: scale(1);
+    filter: brightness(1);
+  }
+
+  50% {
+    transform: scale(1.04);
+    filter: brightness(1.15);
+  }
+}
+
+@keyframes orb-listening-fb {
+
+  0%,
+  100% {
+    transform: scale(1);
+    filter: brightness(1);
+  }
+
+  25% {
+    transform: scale(1.07);
+    filter: brightness(1.3);
+  }
+
+  75% {
+    transform: scale(0.97);
+    filter: brightness(0.9);
+  }
+}
+
+@keyframes orb-thinking-fb {
+
+  0%,
+  100% {
+    transform: scale(1) rotate(0deg);
+    filter: brightness(1);
+  }
+
+  33% {
+    transform: scale(1.05) rotate(1deg);
+    filter: brightness(1.2);
+  }
+
+  66% {
+    transform: scale(1.02) rotate(-1deg);
+    filter: brightness(1.1);
+  }
+}
+
+@keyframes orb-speaking-fb {
+
+  0%,
+  100% {
+    transform: scale(1);
+    filter: brightness(1);
+  }
+
+  20% {
+    transform: scale(1.06);
+    filter: brightness(1.25);
+  }
+
+  40% {
+    transform: scale(1.02);
+    filter: brightness(1.05);
+  }
+
+  60% {
+    transform: scale(1.08);
+    filter: brightness(1.3);
+  }
+
+  80% {
+    transform: scale(1.01);
+    filter: brightness(1.08);
+  }
+}
+
+@keyframes orb-error-fb {
+
+  0%,
+  100% {
+    transform: scale(1) translateX(0);
+  }
+
+  20% {
+    transform: scale(1.03) translateX(-3px);
+  }
+
+  40% {
+    transform: scale(1.03) translateX(3px);
+  }
+
+  60% {
+    transform: scale(1.03) translateX(-2px);
+  }
+
+  80% {
+    transform: scale(1.03) translateX(2px);
+  }
+}
+
+/* Legacy class kept for backward compat with script.js */
+.orb.listening {
+  animation: orb-listening-fb 0.6s ease-in-out infinite !important;
+}
+
+/* ── GREETING & STATUS ── */
+#greeting {
+  font-family: var(--font-display);
+  font-size: clamp(0.75rem, 1.8vw, 1rem);
+  letter-spacing: 0.12em;
+  color: var(--text-primary);
+  text-align: center;
+  max-width: 580px;
+  min-height: 1.5em;
+  text-shadow: 0 0 18px rgba(var(--accent-end-rgb), 0.25);
+  margin-bottom: 14px;
+  padding: 0 20px;
+}
+
+#status {
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.25em;
+  color: var(--text-secondary);
+  animation: blink 2.5s ease-in-out infinite;
+}
+
+@keyframes blink {
+
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.2;
+  }
+}
+
+/* ── BOTTOM STRIP ──
+   Raised clear of the centered bottom dock. Mono readout font. */
+.data-strip {
+  position: fixed;
+  bottom: 96px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 40px;
+  font-family: var(--font-mono);
+  font-size: 0.58rem;
+  letter-spacing: 0.2em;
+  color: var(--text-tertiary);
+  z-index: 11;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 2s ease;
+}
+
+/* Signal span gets dynamic color from Setings.js */
+#signal-span {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  transition: color 0.4s ease;
+}
+
+@keyframes fadeLine {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ════════════════════════════════════════
+   MIC MUTE BUTTON  (M1 / M6)
+   Sits under the orb, not in the bottom dock — this is the one control a
+   user needs to reach instantly in a noisy room.
+   44px minimum: Apple's HIG minimum is 44, Google's is 48.
+   Accent (default) tracks the orb-colour picker via --cyan; muted state
+   uses the shared danger token.
+   ════════════════════════════════════════ */
+#mic-mute-btn {
+  margin-top: 18px;
+  width: 48px;
+  height: 48px;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0;
+  border-radius: 50%;
+  background: rgba(var(--accent-end-rgb), 0.06);
+  border: 1px solid var(--cyan-dim, rgba(var(--accent-end-rgb), 0.35));
+  color: var(--cyan, #5BD8E0);
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s, border-color 0.2s, box-shadow 0.2s, transform 0.15s, color 0.2s;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+/* The SVGs inherit currentColor, so the button's colour rules below
+   drive the icon too — impossible with an emoji glyph. */
+#mic-mute-btn .mic-icon {
+  width: 22px;
+  height: 22px;
+  display: block;
+  pointer-events: none;
+}
+
+/* Both icons are in the DOM; only one is shown. Swapping visibility
+   avoids the flicker of rewriting innerHTML on every toggle. */
+#mic-mute-btn .mic-off { display: none; }
+#mic-mute-btn.muted .mic-on { display: none; }
+#mic-mute-btn.muted .mic-off { display: block; }
+
+#mic-mute-btn:hover {
+  background: rgba(var(--accent-end-rgb), 0.14);
+  box-shadow: 0 0 18px rgba(var(--accent-end-rgb), 0.25);
+}
+
+/* B5: touch devices have no hover, so every :hover needs an :active
+   twin or the button gives no feedback at all on a phone. */
+#mic-mute-btn:active {
+  transform: scale(0.92);
+  background: rgba(var(--accent-end-rgb), 0.2);
+}
+
+#mic-mute-btn:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+#mic-mute-btn.muted {
+  background: rgba(var(--danger-rgb), 0.12);
+  border-color: rgba(var(--danger-rgb), 0.55);
+  color: var(--danger-color);
+  box-shadow: 0 0 20px rgba(var(--danger-rgb), 0.25);
+}
+
+#mic-mute-btn.muted:hover {
+  background: rgba(var(--danger-rgb), 0.18);
+}
+
+#mic-mute-btn.muted:active {
+  background: rgba(var(--danger-rgb), 0.24);
+}
+
+/* M6: the orb itself shows mute state — an icon swap alone is too
+   easy to miss on a dark HUD. */
+.orb.mic-muted {
+  filter: grayscale(0.75) brightness(0.6);
+}
+
+.orb.mic-muted::after {
+  content: '';
+  position: absolute;
+  inset: -14px;
+  border-radius: 50%;
+  border: 2px dashed rgba(var(--danger-rgb), 0.55);
+  animation: mic-muted-ring 2.4s linear infinite;
+  pointer-events: none;
+}
+
+@keyframes mic-muted-ring {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .orb.mic-muted::after { animation: none; }
+}
+
+/* ── MOBILE ADJUSTMENTS ── */
+@media (max-width: 480px) {
+
+  #hud-dock {
+    /* Fixed full-width bar so the four cells can divide the row evenly.
+       An explicit width (not just max-width) gives flex:1 children a
+       stable track to share, and nowrap keeps the ••• on the same line
+       as Text · Reminders · Settings instead of dropping beneath them. */
+    width: calc(100vw - 20px);
+    max-width: calc(100vw - 20px);
+    bottom: 14px;
+    gap: 6px;
+    padding: 7px 8px;
+    flex-wrap: nowrap;
+    justify-content: stretch;
+  }
+
+  /* The phone bar is exactly four equal cells (Text · Reminders ·
+     Settings · •••), each taking a quarter of the row. */
+  #hud-dock #txt-btn,
+  #hud-dock #rem-btn,
+  #hud-dock #set-btn,
+  #hud-more-btn {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+
+  /* B2: keep a legible caption and a 44px minimum target on phones. */
+  .kx-dock-btn {
+    min-width: 46px;
+    min-height: 44px;
+    font-size: 0.54rem;
+    padding: 5px 6px;
+    letter-spacing: 0.1em;
+  }
+
+  .kx-dock-btn .ic {
+    width: 18px;
+    height: 18px;
+  }
+
+  #hud-left {
+    left: 12px;
+  }
+
+  #hud-time {
+    font-size: 0.85rem;
+  }
+
+  /* B4: the orb was a fixed 270px/125px, which collides with the
+     title, greeting and data strip on a 360px screen. */
+  .hud-outer {
+    width: min(270px, 62vmin);
+    height: min(270px, 62vmin);
+  }
+
+  .ring.r1 { width: min(270px, 62vmin); height: min(270px, 62vmin); }
+  .ring.r2 { width: min(248px, 57vmin); height: min(248px, 57vmin); }
+  .ring.r3 { width: min(230px, 53vmin); height: min(230px, 53vmin); }
+
+  .orb {
+    width: min(125px, 29vmin);
+    height: min(125px, 29vmin);
+  }
+
+  #cam-feed {
+    width: min(200px, 42vw);
+    height: auto;
+    left: 12px;
+    bottom: 92px;
+  }
+
+  #mic-mute-btn {
+    margin-top: 14px;
+  }
+
+  /* Decorative bottom readout — hidden on phones so it can't collide with
+     a wrapped dock; the live clock still shows in #hud-left. */
+  .data-strip {
+    display: none;
+  }
+
+  /* ── DOCK → phone bar + ••• "more" sheet ───────────────────────────────
+     The nine-icon row is too dense on a phone, so the dock becomes a
+     three-button bar (Text · Reminders · Settings) plus a ••• control that
+     fades + scales a glass sheet of the other six controls in above it
+     (never a slide-up). Pure CSS — the #hud-more-toggle checkbox is flipped
+     by the ••• and backdrop <label>s — so every button keeps its original
+     id + JS handler and no script is added. */
+
+  /* ••• joins the bar; the primary trio is ordered ahead of it */
+  #hud-more-btn {
+    display: flex;
+    order: 4;
+    user-select: none;
+  }
+  #hud-dock #txt-btn { order: 1; }
+  #hud-dock #rem-btn { order: 2; }
+  #hud-dock #set-btn { order: 3; }
+
+  /* bar controls sit above the scrim so they stay crisp while it is open */
+  #hud-dock #txt-btn,
+  #hud-dock #rem-btn,
+  #hud-dock #set-btn,
+  #hud-more-btn {
+    position: relative;
+    z-index: 12;
+  }
+
+  /* the six secondary controls leave the row and become a glass sheet
+     floating just above the bar */
+  #hud-dock #hud-right-top {
+    position: fixed;
+    left: 10px;
+    right: 10px;
+    bottom: 82px;                 /* clears the ~58px bar at bottom:14px + a gap */
+    z-index: 13;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    margin: 0;
+    padding: 10px 12px 14px;
+    background: var(--glass-fill);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--glass-radius-lg);
+    -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(140%);
+    backdrop-filter: blur(var(--glass-blur)) saturate(140%);
+    box-shadow: var(--shadow-panel), inset 0 1px 0 var(--glass-highlight);
+    opacity: 0;
+    visibility: hidden;
+    transform: scale(0.96);
+    transform-origin: bottom center;
+    transition: opacity var(--dur-overlay) var(--ease-glass),
+                transform var(--dur-overlay) var(--ease-glass),
+                visibility var(--dur-overlay) var(--ease-glass);
+  }
+
+  /* a small grabber handle across the top reads the sheet as a panel
+     (iOS sheet convention) and separates it from the bar below */
+  #hud-dock #hud-right-top::before {
+    content: "";
+    grid-column: 1 / -1;
+    justify-self: center;
+    width: 36px;
+    height: 4px;
+    margin-bottom: 2px;
+    border-radius: var(--glass-radius-pill);
+    background: var(--glass-highlight);
+  }
+
+  /* each sheet cell is a defined glass tile — a comfortable, evenly sized
+     tap target that reads as an organised grid rather than loose icons */
+  #hud-dock #hud-right-top .kx-dock-btn {
+    width: 100%;
+    min-height: 62px;
+    gap: 5px;
+    background: var(--glass-fill-weak);
+    border: 1px solid var(--glass-border-soft);
+    border-radius: var(--glass-radius-md);
+  }
+
+  #hud-dock #hud-right-top .kx-dock-btn .ic {
+    width: 21px;
+    height: 21px;
+  }
+
+  #hud-dock #hud-right-top .kx-dock-btn:active {
+    background: var(--glass-fill);
+  }
+
+  /* ••• checked → fade + scale the sheet in */
+  #hud-more-toggle:checked ~ #hud-right-top {
+    opacity: 1;
+    visibility: visible;
+    transform: scale(1);
+  }
+
+  /* tap-away scrim, below the bar but above the rest of the HUD */
+  .kx-more-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 11;
+    background: rgba(6, 7, 11, 0.45);
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity var(--dur-overlay) var(--ease-glass),
+                visibility var(--dur-overlay) var(--ease-glass);
+  }
+  #hud-more-toggle:checked ~ .kx-more-backdrop {
+    opacity: 1;
+    visibility: visible;
+  }
+
+  /* the checkbox stays invisible but keyboard-focusable; its focus ring is
+     mirrored onto the ••• label */
+  #hud-more-toggle {
+    display: block;
+    position: fixed;
+    width: 1px;
+    height: 1px;
+    margin: 0;
+    opacity: 0;
+    pointer-events: none;
+  }
+  #hud-more-toggle:focus-visible + #hud-more-btn {
+    box-shadow: var(--focus-ring);
+  }
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   CAMERA / SCREEN-SHARE OVERLAY CHROME
+   Functional classes rendered by script.js. Names + structure unchanged;
+   recoloured onto glass + the shared danger token. --cyan / --cyan-dim
+   still track the orb-colour picker.
+   ════════════════════════════════════════════════════════════════════ */
+.kx-media-topbar {
+  position: fixed;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: rgba(13, 15, 22, 0.72);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--glass-radius-md);
+  padding: 8px 14px;
+  -webkit-backdrop-filter: blur(var(--glass-blur-sm)) saturate(140%);
+  backdrop-filter: blur(var(--glass-blur-sm)) saturate(140%);
+  box-shadow: var(--shadow-card), inset 0 1px 0 var(--glass-highlight);
+}
+
+.kx-live-pill {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  letter-spacing: 0.08em;
+}
+
+.kx-live-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--danger-color);
+  animation: pulse 1.2s infinite;
+}
+
+@keyframes pulse {
+
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.3;
+  }
+}
+
+.kx-media-controls {
+  display: flex;
+  gap: 8px;
+}
+
+.kx-icon-btn,
+.kx-stop-share-btn {
+  background: rgba(var(--accent-end-rgb), 0.08);
+  border: 1px solid var(--cyan-dim, rgba(var(--accent-end-rgb), 0.35));
+  color: var(--cyan, #5BD8E0);
+  border-radius: var(--glass-radius-sm);
+  padding: 6px 10px;
+  cursor: pointer;
+  font-size: 14px;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+/* Icon buttons hold inline SVG now, not emoji glyphs — square them up
+   so the icon centres, and give them a real touch target. */
+.kx-icon-btn {
+  width: 34px;
+  height: 34px;
+  min-width: 34px;
+  min-height: 34px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s, border-color 0.2s, transform 0.12s, color 0.2s;
+}
+
+.kx-icon-btn .kx-icon,
+.kx-icon-btn .ic,
+.kx-icon-btn .mic-icon {
+  width: 18px;
+  height: 18px;
+  display: block;
+  pointer-events: none;
+}
+
+/* One mic icon visible at a time, matching the main mute button. */
+.kx-icon-btn .mic-off { display: none; }
+.kx-icon-btn.muted .mic-on { display: none; }
+.kx-icon-btn.muted .mic-off { display: block; }
+
+.kx-icon-btn:hover,
+.kx-stop-share-btn:hover {
+  background: rgba(var(--accent-end-rgb), 0.2);
+}
+
+.kx-icon-btn:active,
+.kx-stop-share-btn:active {
+  transform: scale(0.92);
+}
+
+.kx-icon-btn:focus-visible,
+.kx-stop-share-btn:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.kx-icon-btn.muted {
+  background: rgba(var(--danger-rgb), 0.12);
+  border-color: rgba(var(--danger-rgb), 0.5);
+  color: var(--danger-color);
+  opacity: 0.9;
+}
+
+.kx-icon-btn.muted:hover {
+  background: rgba(var(--danger-rgb), 0.2);
+}
+
+.kx-icon-btn.danger,
+.kx-stop-share-btn {
+  border-color: rgba(var(--danger-rgb), 0.55);
+  color: var(--danger-color);
+}
+
+.kx-stop-share-btn:hover {
+  background: rgba(var(--danger-rgb), 0.16);
+}

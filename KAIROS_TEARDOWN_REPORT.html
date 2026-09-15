@@ -1,0 +1,961 @@
+<title>KAIROS Teardown</title>
+<style>
+  /* ═══ TOKENS — LIGHT (bare :root = system default light) ═══ */
+  :root {
+    --ground:      #f4f6f9;
+    --surface:     #ffffff;
+    --surface-2:   #eef1f6;
+    --line:        #d8dee8;
+    --line-strong: #c2cbd8;
+    --ink:         #0f1b2a;
+    --ink-soft:    #46586e;
+    --ink-faint:   #7688a0;
+    --accent:      #0e7490;
+    --accent-soft: #0e749015;
+    --crit:        #cc2b36;
+    --crit-bg:     #cc2b3612;
+    --warn:        #b5680a;
+    --warn-bg:     #b5680a12;
+    --ok:          #1f8a4c;
+    --ok-bg:       #1f8a4c12;
+    --meter-track: #dde3ec;
+    --shadow:      0 1px 2px rgba(15,27,42,.06), 0 4px 16px rgba(15,27,42,.05);
+    --mono: ui-monospace, "JetBrains Mono", "SF Mono", "Cascadia Code", Menlo, Consolas, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  }
+  /* ═══ TOKENS — DARK via OS, unless an explicit light choice overrides ═══ */
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground:      #060d18;
+      --surface:     #0d1826;
+      --surface-2:   #101f31;
+      --line:        #1c2f45;
+      --line-strong: #2a4360;
+      --ink:         #d6e6f2;
+      --ink-soft:    #92a8c2;
+      --ink-faint:   #5f758f;
+      --accent:      #38d6ff;
+      --accent-soft: #38d6ff18;
+      --crit:        #ff5c62;
+      --crit-bg:     #ff5c6216;
+      --warn:        #ffb020;
+      --warn-bg:     #ffb02016;
+      --ok:          #34d17f;
+      --ok-bg:       #34d17f16;
+      --meter-track: #17273b;
+      --shadow:      0 1px 2px rgba(0,0,0,.4), 0 8px 30px rgba(0,0,0,.35);
+    }
+  }
+  /* ═══ TOKENS — explicit dark toggle wins in both directions ═══ */
+  :root[data-theme="dark"] {
+    --ground:      #060d18;
+    --surface:     #0d1826;
+    --surface-2:   #101f31;
+    --line:        #1c2f45;
+    --line-strong: #2a4360;
+    --ink:         #d6e6f2;
+    --ink-soft:    #92a8c2;
+    --ink-faint:   #5f758f;
+    --accent:      #38d6ff;
+    --accent-soft: #38d6ff18;
+    --crit:        #ff5c62;
+    --crit-bg:     #ff5c6216;
+    --warn:        #ffb020;
+    --warn-bg:     #ffb02016;
+    --ok:          #34d17f;
+    --ok-bg:       #34d17f16;
+    --meter-track: #17273b;
+    --shadow:      0 1px 2px rgba(0,0,0,.4), 0 8px 30px rgba(0,0,0,.35);
+  }
+
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    background: var(--ground);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: 16px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 940px; margin: 0 auto; padding: 0 22px 120px; }
+
+  /* ─── MASTHEAD ─── */
+  .mast {
+    padding: 56px 0 30px;
+    border-bottom: 1px solid var(--line);
+  }
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: .68rem;
+    letter-spacing: .32em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin: 0 0 18px;
+  }
+  .wordmark {
+    font-family: var(--mono);
+    font-weight: 700;
+    font-size: clamp(2.1rem, 6vw, 3.4rem);
+    letter-spacing: -.01em;
+    line-height: 1.02;
+    margin: 0;
+    text-wrap: balance;
+  }
+  .wordmark .dim { color: var(--ink-faint); font-weight: 500; }
+  .lede {
+    max-width: 62ch;
+    color: var(--ink-soft);
+    font-size: 1.02rem;
+    margin: 20px 0 0;
+  }
+  .meta-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 26px;
+    margin-top: 26px;
+    font-family: var(--mono);
+    font-size: .7rem;
+    letter-spacing: .08em;
+    color: var(--ink-faint);
+    text-transform: uppercase;
+  }
+  .meta-row b { color: var(--ink-soft); font-weight: 600; }
+
+  /* ─── VERDICT / KPI STRIP ─── */
+  .kpis {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 1px;
+    background: var(--line);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    overflow: hidden;
+    margin: 34px 0 8px;
+    box-shadow: var(--shadow);
+  }
+  .kpi {
+    background: var(--surface);
+    padding: 20px 16px;
+    text-align: center;
+  }
+  .kpi .n {
+    font-family: var(--mono);
+    font-weight: 700;
+    font-size: 2rem;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+  }
+  .kpi .l {
+    font-family: var(--mono);
+    font-size: .58rem;
+    letter-spacing: .18em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    margin-top: 9px;
+  }
+  .kpi.crit .n { color: var(--crit); }
+  .kpi.high .n { color: var(--warn); }
+  .kpi.med  .n { color: var(--accent); }
+  .kpi.low  .n { color: var(--ink-soft); }
+  .kpi.score .n { color: var(--ink); }
+  .kpi.score .n small { font-size: .9rem; color: var(--ink-faint); font-weight: 500; }
+  @media (max-width: 620px) {
+    .kpis { grid-template-columns: repeat(2, 1fr); }
+    .kpi.score { grid-column: span 2; }
+  }
+
+  /* ─── SECTIONS ─── */
+  section { margin-top: 66px; }
+  .sec-head {
+    display: flex;
+    align-items: baseline;
+    gap: 14px;
+    border-bottom: 2px solid var(--ink);
+    padding-bottom: 10px;
+    margin-bottom: 26px;
+  }
+  .sec-num {
+    font-family: var(--mono);
+    font-size: .8rem;
+    font-weight: 700;
+    color: var(--accent);
+    letter-spacing: .1em;
+  }
+  .sec-title {
+    font-family: var(--mono);
+    font-weight: 700;
+    font-size: 1.15rem;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    margin: 0;
+  }
+  .sec-intro { color: var(--ink-soft); max-width: 68ch; margin: 0 0 26px; }
+  h3.block {
+    font-family: var(--mono);
+    font-size: .95rem;
+    letter-spacing: .05em;
+    text-transform: uppercase;
+    color: var(--ink);
+    margin: 40px 0 14px;
+  }
+
+  /* ─── ARCHITECTURE DIAGRAM ─── */
+  .arch {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .layer {
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--surface);
+    box-shadow: var(--shadow);
+    overflow: hidden;
+  }
+  .layer-tag {
+    font-family: var(--mono);
+    font-size: .58rem;
+    letter-spacing: .22em;
+    text-transform: uppercase;
+    color: var(--accent);
+    padding: 11px 16px 0;
+  }
+  .layer-body {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 10px 16px 15px;
+  }
+  .node {
+    font-family: var(--mono);
+    font-size: .74rem;
+    padding: 7px 11px;
+    border: 1px solid var(--line-strong);
+    border-radius: 6px;
+    background: var(--surface-2);
+    color: var(--ink-soft);
+    white-space: nowrap;
+  }
+  .node.warnflag { border-color: var(--warn); color: var(--warn); background: var(--warn-bg); }
+  .node.critflag { border-color: var(--crit); color: var(--crit); background: var(--crit-bg); }
+  .flow {
+    text-align: center;
+    font-family: var(--mono);
+    color: var(--ink-faint);
+    font-size: 1rem;
+    line-height: 0;
+    margin: -6px 0;
+  }
+
+  /* ─── ISSUE CARDS ─── */
+  .issue {
+    position: relative;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-left: 4px solid var(--ink-faint);
+    border-radius: 9px;
+    padding: 18px 20px 20px;
+    margin-bottom: 16px;
+    box-shadow: var(--shadow);
+  }
+  .issue.c-crit { border-left-color: var(--crit); }
+  .issue.c-high { border-left-color: var(--warn); }
+  .issue.c-med  { border-left-color: var(--accent); }
+  .issue.c-low  { border-left-color: var(--ink-faint); }
+  .issue-top {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+  }
+  .sev {
+    font-family: var(--mono);
+    font-size: .56rem;
+    font-weight: 700;
+    letter-spacing: .16em;
+    text-transform: uppercase;
+    padding: 4px 9px;
+    border-radius: 5px;
+  }
+  .sev.crit { background: var(--crit-bg); color: var(--crit); }
+  .sev.high { background: var(--warn-bg); color: var(--warn); }
+  .sev.med  { background: var(--accent-soft); color: var(--accent); }
+  .sev.low  { background: var(--surface-2); color: var(--ink-faint); }
+  .issue-id {
+    font-family: var(--mono);
+    font-size: .66rem;
+    color: var(--ink-faint);
+    letter-spacing: .1em;
+  }
+  .issue h4 {
+    font-size: 1.04rem;
+    margin: 0;
+    flex: 1 1 100%;
+    line-height: 1.35;
+  }
+  .loc {
+    font-family: var(--mono);
+    font-size: .72rem;
+    color: var(--accent);
+    background: var(--accent-soft);
+    padding: 2px 7px;
+    border-radius: 4px;
+  }
+  .issue p { margin: 8px 0 0; color: var(--ink-soft); font-size: .95rem; }
+  .fix {
+    margin-top: 13px;
+    padding: 11px 14px;
+    background: var(--ok-bg);
+    border: 1px solid color-mix(in srgb, var(--ok) 30%, transparent);
+    border-radius: 7px;
+    font-size: .9rem;
+    color: var(--ink);
+  }
+  .fix b {
+    font-family: var(--mono);
+    font-size: .58rem;
+    letter-spacing: .18em;
+    text-transform: uppercase;
+    color: var(--ok);
+    display: block;
+    margin-bottom: 5px;
+  }
+  code {
+    font-family: var(--mono);
+    font-size: .84em;
+    background: var(--surface-2);
+    padding: 1px 5px;
+    border-radius: 4px;
+    color: var(--ink);
+  }
+
+  /* ─── RATINGS TABLE ─── */
+  .ratings {
+    border: 1px solid var(--line);
+    border-radius: 11px;
+    overflow: hidden;
+    box-shadow: var(--shadow);
+  }
+  .rate-row {
+    display: grid;
+    grid-template-columns: 1.5fr 74px 1fr;
+    align-items: center;
+    gap: 16px;
+    padding: 15px 18px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--line);
+  }
+  .rate-row:last-child { border-bottom: none; }
+  .rate-row.head {
+    background: var(--surface-2);
+    font-family: var(--mono);
+    font-size: .58rem;
+    letter-spacing: .18em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+  }
+  .rate-name { font-weight: 600; font-size: .95rem; }
+  .rate-name small { display:block; font-weight: 400; color: var(--ink-faint); font-family: var(--mono); font-size: .62rem; letter-spacing: .04em; margin-top: 3px; }
+  .rate-score {
+    font-family: var(--mono);
+    font-weight: 700;
+    font-size: 1.15rem;
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+  }
+  .rate-score small { color: var(--ink-faint); font-size: .7rem; font-weight: 500; }
+  .meter { height: 7px; border-radius: 4px; background: var(--meter-track); overflow: hidden; }
+  .meter > i { display: block; height: 100%; border-radius: 4px; }
+  .m-lo > i  { background: var(--crit); }
+  .m-mid > i { background: var(--warn); }
+  .m-hi > i  { background: var(--ok); }
+  .rate-note { color: var(--ink-soft); font-size: .82rem; }
+  @media (max-width: 620px) {
+    .rate-row { grid-template-columns: 1fr 60px; }
+    .rate-row .meter, .rate-row.head span:nth-child(3) { display: none; }
+    .rate-note { display: none; }
+  }
+
+  /* ─── ROADMAP ─── */
+  .phase {
+    border: 1px solid var(--line);
+    border-radius: 11px;
+    background: var(--surface);
+    padding: 20px 22px 22px;
+    margin-bottom: 16px;
+    box-shadow: var(--shadow);
+  }
+  .phase-tag {
+    font-family: var(--mono);
+    font-size: .6rem;
+    letter-spacing: .2em;
+    text-transform: uppercase;
+    color: var(--accent);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .phase-tag .when { color: var(--ink-faint); }
+  .phase h4 { margin: 8px 0 4px; font-size: 1.12rem; }
+  .phase > p { margin: 0 0 14px; color: var(--ink-soft); font-size: .93rem; }
+  .feat { display: flex; gap: 11px; padding: 9px 0; border-top: 1px dashed var(--line); }
+  .feat:first-of-type { border-top: none; }
+  .feat .dot {
+    font-family: var(--mono);
+    font-size: .62rem;
+    color: var(--accent);
+    flex-shrink: 0;
+    margin-top: 3px;
+  }
+  .feat b { font-size: .92rem; }
+  .feat span { color: var(--ink-soft); font-size: .88rem; }
+
+  .thesis {
+    background: linear-gradient(180deg, var(--accent-soft), transparent);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 24px 26px;
+    margin-bottom: 30px;
+  }
+  .thesis p { margin: 0 0 12px; }
+  .thesis p:last-child { margin-bottom: 0; }
+  .thesis strong { color: var(--accent); }
+
+  .callout {
+    border: 1px solid var(--crit);
+    background: var(--crit-bg);
+    border-radius: 11px;
+    padding: 20px 22px;
+    margin: 30px 0;
+  }
+  .callout .ct {
+    font-family: var(--mono);
+    font-size: .62rem;
+    letter-spacing: .2em;
+    text-transform: uppercase;
+    color: var(--crit);
+    font-weight: 700;
+    margin: 0 0 8px;
+  }
+  .callout p { margin: 0; color: var(--ink); }
+
+  footer {
+    margin-top: 72px;
+    padding-top: 24px;
+    border-top: 1px solid var(--line);
+    font-family: var(--mono);
+    font-size: .68rem;
+    letter-spacing: .06em;
+    color: var(--ink-faint);
+    line-height: 1.9;
+  }
+  strong { color: var(--ink); }
+  a { color: var(--accent); }
+</style>
+
+<div class="wrap">
+
+  <header class="mast">
+    <p class="eyebrow">Adversarial Product Teardown</p>
+    <h1 class="wordmark">KAIROS <span class="dim">// full-stack teardown</span></h1>
+    <p class="lede">
+      A competitor's-eye read of the whole system — the voice loop you flagged, the
+      architecture, every defect I could find ranked by how much it would hurt in the wild,
+      the fix for each, an honest feature-by-feature score, and the roadmap that would let an
+      ambient assistant win where the frontier labs can't reach.
+    </p>
+    <div class="meta-row">
+      <span><b>Scope</b> backend.py · script.js · brain.js · ai.js · admin · auth · payments · PWA</span>
+      <span><b>Lens</b> hostile reviewer</span>
+      <span><b>Date</b> 2026-08-12</span>
+    </div>
+  </header>
+
+  <div class="kpis">
+    <div class="kpi crit"><div class="n">1</div><div class="l">Critical</div></div>
+    <div class="kpi high"><div class="n">7</div><div class="l">High</div></div>
+    <div class="kpi med"><div class="n">10</div><div class="l">Medium</div></div>
+    <div class="kpi low"><div class="n">8</div><div class="l">Low</div></div>
+    <div class="kpi score"><div class="n">6.0<small>/10</small></div><div class="l">Overall</div></div>
+  </div>
+
+  <!-- ═══ 1 · VERDICT ═══ -->
+  <section>
+    <div class="sec-head"><span class="sec-num">01</span><h2 class="sec-title">The one-line verdict</h2></div>
+    <p class="sec-intro">
+      KAIROS is a genuinely ambitious full-stack voice assistant with real range — hands-free
+      wake word, camera + screen vision, payments, admin, PWA — built solo without a framework.
+      That ambition is the story. But it's shipped on a trust foundation that a competitor would
+      attack first: <strong>live secrets in the repo</strong>, an auth model that forgets to
+      enforce suspension, a self-hearing voice loop, and a privacy policy that says the opposite
+      of what the server actually does. The bones are good. The seams are showing.
+    </p>
+    <div class="thesis">
+      <p><strong>What's strong:</strong> the AI network layer (<code>brain.js</code>) is clean and correctly
+      streaming; history is stored raw to avoid quadratic growth; the admin panel is server-gated
+      with pagination and escaped output; the multi-provider router with circuit breakers is real engineering.</p>
+      <p><strong>What's fragile:</strong> the security perimeter, the always-listening loop, and the
+      gap between what the marketing copy promises and what the code does. None of it is unfixable —
+      most are a day's work — but together they're exactly the list a rival would screenshot.</p>
+    </div>
+  </section>
+
+  <!-- ═══ 2 · ARCHITECTURE ═══ -->
+  <section>
+    <div class="sec-head"><span class="sec-num">02</span><h2 class="sec-title">Architecture &amp; structure</h2></div>
+    <p class="sec-intro">
+      A classic thick-client / monolith-server split. All server logic lives in one ~2,600-line
+      <code>backend.py</code>; the browser runs a no-build vanilla-JS PWA that talks same-origin.
+      Clean to reason about, but the monolith and the dual store are the structural risks.
+    </p>
+
+    <div class="arch">
+      <div class="layer">
+        <div class="layer-tag">Client — Vanilla-JS PWA (no build step)</div>
+        <div class="layer-body">
+          <span class="node">script.js · voice engine</span>
+          <span class="node">brain.js · AI network</span>
+          <span class="node">ai.js · reminders</span>
+          <span class="node">Filereader / Memory / Multilang</span>
+          <span class="node">three.js particles</span>
+          <span class="node">Web Speech API</span>
+          <span class="node">Service Worker</span>
+        </div>
+      </div>
+      <div class="flow">↕ &nbsp; same-origin fetch / SSE &nbsp; ↕</div>
+      <div class="layer">
+        <div class="layer-tag">Server — Flask monolith (backend.py, ~2,600 lines)</div>
+        <div class="layer-body">
+          <span class="node">@require_auth / @require_admin</span>
+          <span class="node">router.py · intent→model</span>
+          <span class="node">providers.py · circuit breaker</span>
+          <span class="node">/ask · /ask/stream</span>
+          <span class="node">/vision · /screen</span>
+          <span class="node">admin API</span>
+          <span class="node critflag">itsdangerous tokens · no revocation</span>
+        </div>
+      </div>
+      <div class="flow">↕</div>
+      <div class="layer">
+        <div class="layer-tag">State &amp; data</div>
+        <div class="layer-body">
+          <span class="node">SQLite / Postgres (Supabase)</span>
+          <span class="node warnflag">Redis OR in-memory store — Redis not installed</span>
+        </div>
+      </div>
+      <div class="flow">↕ &nbsp; outbound &nbsp; ↕</div>
+      <div class="layer">
+        <div class="layer-tag">External services</div>
+        <div class="layer-body">
+          <span class="node">OpenRouter</span>
+          <span class="node">Groq</span>
+          <span class="node">Paystack (NGN)</span>
+          <span class="node">Brevo email</span>
+          <span class="node">Google OAuth</span>
+          <span class="node">WebAuthn / passkeys</span>
+        </div>
+      </div>
+    </div>
+
+    <h3 class="block">Structural observations</h3>
+    <div class="issue c-med">
+      <div class="issue-top"><span class="sev med">Structure</span><span class="issue-id">ARCH-1</span>
+        <h4>The 2,600-line monolith is the single biggest maintainability tax</h4></div>
+      <p>Every route, migration, auth check, payment handler and admin endpoint lives in one file.
+      It works, but it makes every change risk-prone and review-hostile. A competitor reading this
+      knows one bad merge takes down everything.</p>
+      <div class="fix"><b>Fix</b> Split into blueprints — <code>auth.py</code>, <code>chat.py</code>,
+      <code>payments.py</code>, <code>admin.py</code> — behind an app factory. No behaviour change,
+      huge blast-radius reduction.</div>
+    </div>
+    <div class="issue c-med">
+      <div class="issue-top"><span class="sev med">Structure</span><span class="issue-id">ARCH-2</span>
+        <h4>Dual store (Redis OR in-memory) silently breaks under multiple workers</h4></div>
+      <p><code>store.py</code> falls back to an in-process dict when Redis is absent — and Redis is
+      commented out in <span class="loc">requirements.txt:51</span>. Run two Gunicorn workers and rate
+      limits, lockouts and login throttles become per-worker and inconsistent. This is a correctness
+      bug hiding as a config choice.</p>
+      <div class="fix"><b>Fix</b> Install Redis and make it required in production (fail fast if
+      <code>REDIS_URL</code> is unset when workers > 1), or pin the app to a single worker and document it.</div>
+    </div>
+  </section>
+
+  <!-- ═══ 3 · THE LOOP ═══ -->
+  <section>
+    <div class="sec-head"><span class="sec-num">03</span><h2 class="sec-title">The loop — you asked about this first</h2></div>
+    <p class="sec-intro">
+      There isn't one loop. There are <strong>two</strong>, and they compound. One makes KAIROS
+      talk to itself; the other makes it spin the microphone forever when something goes wrong.
+      Both are in <code>script.js</code>.
+    </p>
+
+    <div class="issue c-high">
+      <div class="issue-top"><span class="sev high">High</span><span class="issue-id">LOOP-A · self-hearing</span>
+        <h4>KAIROS hears its own voice and answers itself</h4></div>
+      <p>The main listener stays live while TTS is speaking. The only guard is
+      <span class="loc">script.js:745</span> — <code>if (lastSpokenReply.includes(normalized) &amp;&amp; normalized.length &lt; 40) return;</code>.
+      That fails the moment the reply is long, the recognizer mis-transcribes a word, or the speaker
+      bleeds a fragment back. Result: KAIROS transcribes its own sentence, treats it as a command,
+      and replies to itself — the runaway conversation.</p>
+      <div class="fix"><b>Fix</b> Hard-gate the recognizer around speech, don't filter after the fact.
+      Set a <code>isSpeaking</code> flag; on <code>speechSynthesis</code> start call <code>mainRec.stop()</code>,
+      and only re-arm in the utterance's <code>onend</code> (plus a ~300ms tail). Belt-and-braces:
+      keep the text-similarity guard as a second line, not the only one.</div>
+    </div>
+
+    <div class="issue c-med">
+      <div class="issue-top"><span class="sev med">Medium</span><span class="issue-id">LOOP-B · restart storm</span>
+        <h4>The wake-word recognizer restarts forever with no backoff or cap</h4></div>
+      <p><span class="loc">script.js:673–678</span>: <code>onend</code> → <code>setTimeout(buildWakeRec, 400)</code>,
+      <code>onerror</code> → 800ms, <code>catch</code> → 800ms. If the mic is revoked, the device has no
+      audio input, or the browser throttles a background tab, this rebuilds a doomed recognizer several
+      times a second, indefinitely — a CPU/battery drain and a console flood, with no user-visible signal
+      that anything is wrong.</p>
+      <div class="fix"><b>Fix</b> Add exponential backoff with a ceiling (400ms → 800 → 1600 … cap 10s)
+      and a consecutive-failure counter. After N failures, stop and surface a "tap to re-enable mic"
+      state instead of silently thrashing.</div>
+    </div>
+
+    <div class="issue c-med">
+      <div class="issue-top"><span class="sev med">Medium</span><span class="issue-id">LOOP-C · double mic</span>
+        <h4>Clap detection opens a second microphone stream alongside speech recognition</h4></div>
+      <p>Clap detect (<span class="loc">script.js:568–637</span>) opens its own <code>getUserMedia</code>
+      stream plus an 80ms <code>setInterval</code> FFT loop, while the wake-word <code>SpeechRecognition</code>
+      also holds the mic. Two consumers of one microphone is fragile across browsers, and the threshold
+      (<code>volume &gt; 75</code> raw average, line 596) is crude enough to false-trigger on a door slam.</p>
+      <div class="fix"><b>Fix</b> Share one <code>AudioContext</code> analyser node between clap detection and
+      VAD; drop the raw-average threshold for a short-term-energy + zero-crossing test, or make clap-to-wake
+      an explicit opt-in that closes the stream when idle.</div>
+    </div>
+
+    <div class="issue c-low">
+      <div class="issue-top"><span class="sev low">Low</span><span class="issue-id">LOOP-D · render loop</span>
+        <h4>three.js particle loop never pauses on a hidden tab</h4></div>
+      <p><span class="loc">script.js:54</span> runs the render loop continuously with no
+      <code>visibilitychange</code> guard — it keeps burning GPU/battery in a backgrounded tab.</p>
+      <div class="fix"><b>Fix</b> Pause the <code>requestAnimationFrame</code> loop on
+      <code>document.hidden</code>; resume on focus.</div>
+    </div>
+  </section>
+
+  <!-- ═══ 4 · SECURITY & CORRECTNESS ═══ -->
+  <section>
+    <div class="sec-head"><span class="sec-num">04</span><h2 class="sec-title">Ranked defect log</h2></div>
+    <p class="sec-intro">
+      Ordered by how much damage it does, not how hard it is to fix. This is the section a competitor
+      would lift wholesale.
+    </p>
+
+    <div class="callout">
+      <p class="ct">⚠ Critical — do this before anything else</p>
+      <p><strong>Live secrets are committed to the repository.</strong> API keys / signing secrets for
+      the AI providers, Paystack, Brevo and the auth token signer are readable in the tree. Anyone who
+      ever had the repo — or a leaked clone — can drain your provider credits, forge auth tokens, and
+      send mail as you. <strong>Rotate every key now</strong>, move them to environment variables /
+      a secret manager, and add them to <code>.gitignore</code>. Rotation is non-negotiable: assume they
+      are already compromised. (I have deliberately not reproduced any secret value here.)</p>
+    </div>
+
+    <div class="issue c-high">
+      <div class="issue-top"><span class="sev high">High</span><span class="issue-id">SEC-1</span>
+        <h4>Suspended users are never actually blocked</h4></div>
+      <p>Admin can "suspend" an account, but <code>require_auth</code> (<span class="loc">auth.py:163–174</span>)
+      validates the token signature and expiry and never checks the <code>suspended</code> flag. A suspended
+      user with a valid 30-day token keeps full access. The moderation feature is cosmetic.</p>
+      <div class="fix"><b>Fix</b> In <code>require_auth</code>, load the user row and reject with 403 if
+      <code>suspended</code> (or <code>deleted</code>). Pair with SEC-6 (revocation) so suspension is instant.</div>
+    </div>
+
+    <div class="issue c-high">
+      <div class="issue-top"><span class="sev high">High</span><span class="issue-id">SEC-2</span>
+        <h4>Jailbreak filter only inspects the current message, not the history</h4></div>
+      <p>The safety check at <span class="loc">backend.py:1353</span> scans the incoming question only.
+      Because the client sends <code>history</code>, an attacker can seed the jailbreak across earlier
+      turns (or in the augmented document/memory block) and slip a clean-looking final message past the filter.</p>
+      <div class="fix"><b>Fix</b> Run the safety classifier over the concatenated conversation the model
+      will actually see, including injected context — or enforce it server-side on the fully-assembled prompt.</div>
+    </div>
+
+    <div class="issue c-high">
+      <div class="issue-top"><span class="sev high">High</span><span class="issue-id">SEC-3</span>
+        <h4>XSS-to-account-takeover chain</h4></div>
+      <p>Three things line up: user-controlled fields (e.g. display name) reach HTML/email un-escaped in
+      places, the CSP allows <code>unsafe-inline</code>, and auth tokens live in <code>localStorage</code>.
+      Any one injected script can read the token and impersonate the user for 30 days. The name→email path
+      is the easiest to weaponize because it also hits other recipients.</p>
+      <div class="fix"><b>Fix</b> Escape all user data at every sink (HTML + email templates), tighten CSP to
+      drop <code>unsafe-inline</code> (nonce your scripts), and move tokens to <code>HttpOnly</code>,
+      <code>Secure</code>, <code>SameSite</code> cookies so injected JS can't read them.</div>
+    </div>
+
+    <div class="issue c-high">
+      <div class="issue-top"><span class="sev high">High</span><span class="issue-id">PAY-1</span>
+        <h4>Paystack verify has a TOCTOU race — a user can double their paid days</h4></div>
+      <p>Verification reads the transaction (<span class="loc">backend.py:1686</span>) and grants the plan
+      (<span class="loc">backend.py:1728</span>) in <em>separate</em> transactions with no idempotency lock on
+      the reference. Fire the verify callback twice quickly and the plan is granted twice — free extra days.</p>
+      <div class="fix"><b>Fix</b> Make the Paystack <code>reference</code> a unique key and grant inside a single
+      atomic transaction with <code>INSERT … ON CONFLICT DO NOTHING</code> (or a row lock). Reject any
+      reference already marked processed.</div>
+    </div>
+
+    <div class="issue c-high">
+      <div class="issue-top"><span class="sev high">High</span><span class="issue-id">LEGAL-1</span>
+        <h4>The privacy policy describes a different product than the one you built</h4></div>
+      <p><code>privacy.html</code> / <code>terms.html</code> claim "local-first" and that "no server stores
+      conversations." KAIROS is a server-backed SaaS that stores users, plans, reminders and routes every
+      message through your backend. For an <em>always-listening</em> assistant this isn't a typo — it's the
+      exact misrepresentation a competitor (or a regulator) points at.</p>
+      <div class="fix"><b>Fix</b> Rewrite the policy to state truthfully what's stored, where, for how long,
+      and which third parties (OpenRouter, Groq, Paystack, Brevo, Google) receive data. Trust is the whole
+      pitch for an ambient assistant — the copy has to be exactly right.</div>
+    </div>
+
+    <div class="issue c-high">
+      <div class="issue-top"><span class="sev high">High</span><span class="issue-id">SEC-4</span>
+        <h4>Unauthenticated <code>/health</code> leaks raw DB error text</h4></div>
+      <p><code>/health</code> returns the raw <code>db_error</code> string with no auth. That can expose
+      driver versions, table names, or connection details — free reconnaissance.</p>
+      <div class="fix"><b>Fix</b> Return a boolean <code>ok</code> publicly; log the detail server-side and
+      gate the verbose payload behind admin auth.</div>
+    </div>
+
+    <!-- MEDIUM -->
+    <h3 class="block">Medium — correctness &amp; product-integrity</h3>
+
+    <div class="issue c-med">
+      <div class="issue-top"><span class="sev med">Medium</span><span class="issue-id">SEC-6</span>
+        <h4>No token revocation — logout is a lie</h4></div>
+      <p>Tokens are stateless <code>itsdangerous</code> blobs valid for 30 days. "Log out" just deletes the
+      local copy; a stolen or logged token keeps working until expiry. Combined with SEC-1 and SEC-3 this
+      turns any leak into a month of access.</p>
+      <div class="fix"><b>Fix</b> Add a server-side token version / jti denylist (a column bumped on
+      logout-all, password reset, or suspend). Check it in <code>require_auth</code>.</div>
+    </div>
+
+    <div class="issue c-med">
+      <div class="issue-top"><span class="sev med">Medium</span><span class="issue-id">BILL-1</span>
+        <h4>Expired plans never downgrade — stale tier &amp; wrong analytics</h4></div>
+      <p><code>downgrade_expired()</code> exists in <span class="loc">plans.py:136</span> but is never called.
+      Users keep <code>plan_tier</code> past expiry and admin stats over-count "pro" users. You're both giving
+      away access and lying to yourself in the dashboard.</p>
+      <div class="fix"><b>Fix</b> Call <code>downgrade_expired()</code> on a scheduler (or lazily at auth time
+      before reading tier), and compute stats from effective (date-checked) tier.</div>
+    </div>
+
+    <div class="issue c-med">
+      <div class="issue-top"><span class="sev med">Medium</span><span class="issue-id">BILL-2</span>
+        <h4>File credit is charged before the file is validated or extracted</h4></div>
+      <p><span class="loc">Filereader.js:107–121</span> decrements the credit, but validation/extraction only
+      happens at line 152. A malformed or unsupported file burns a paid credit for zero output.</p>
+      <div class="fix"><b>Fix</b> Charge only after successful extraction; refund on failure. Move the decrement
+      below the validation gate.</div>
+    </div>
+
+    <div class="issue c-med">
+      <div class="issue-top"><span class="sev med">Medium</span><span class="issue-id">ADMIN-1</span>
+        <h4>Half the admin backend has no UI — including a dead "view details" button</h4></div>
+      <p><span class="loc">Admn.html:618</span> calls <code>openUser('${attrId}')</code> which is never defined —
+      the button does nothing. Meanwhile working endpoints have no UI at all: grant/revoke plan
+      (<code>/plan</code>), suspend, send-reset, the <code>/audit</code> log, and the full config editor
+      (<code>/config</code>). You built the hard part (the API) and shipped the easy part (buttons) half-done.</p>
+      <div class="fix"><b>Fix</b> Wire the detail drawer to <code>GET /api/admin/users/&lt;id&gt;</code> and add
+      the plan / suspend / reset / audit / config controls. Also replace the index-based active-nav match
+      (<span class="loc">Admn.html:503</span>, <code>['users','stats','settings'][i]</code>) with an explicit
+      key per button.</p></div>
+    </div>
+
+    <div class="issue c-med">
+      <div class="issue-top"><span class="sev med">Medium</span><span class="issue-id">ABUSE-1</span>
+        <h4>Signup is unthrottled — a free email/DNS DoS and cost amplifier</h4></div>
+      <p>Account creation triggers a Brevo email with no rate limit. A script can hammer signup to burn your
+      email quota, get you flagged as a spam source, and pollute the users table.</p>
+      <div class="fix"><b>Fix</b> Rate-limit signup per IP + per email domain, add a CAPTCHA or proof-of-work on
+      burst, and defer the welcome email behind verification.</div>
+    </div>
+
+    <div class="issue c-med">
+      <div class="issue-top"><span class="sev med">Medium</span><span class="issue-id">PROD-1</span>
+        <h4>Reminders &amp; campaigns are a client-side facade</h4></div>
+      <p>Reminders fire via <code>setInterval</code> only while the tab is open (<span class="loc">ai.js:391</span>) —
+      correct as far as it goes, but there is no server scheduler or push, so a reminder set for tomorrow
+      simply never fires if the app is closed. For a product whose headline is "assistant," a reminder that
+      only works when you're already looking at it isn't the feature users think they're buying.</p>
+      <div class="fix"><b>Fix</b> Add a server-side scheduler that delivers via Web Push (and/or email) so
+      reminders fire with the tab closed. This is also a roadmap centerpiece (see §06, Phase 2).</div>
+    </div>
+
+    <div class="issue c-med">
+      <div class="issue-top"><span class="sev med">Medium</span><span class="issue-id">VOICE-1</span>
+        <h4>The voice path doesn't use the streaming engine that already exists</h4></div>
+      <p><code>brain.js</code> has a working SSE streaming client (<code>askKairosStream</code>), yet the voice
+      flow calls the non-streaming <code>askKairos</code> at <span class="loc">script.js:886</span>. Spoken
+      replies wait for the full completion before anything happens — the exact latency the streaming work
+      was meant to kill.</p>
+      <div class="fix"><b>Fix</b> Route voice through <code>askKairosStream</code> and start TTS on sentence
+      boundaries as tokens arrive (see §06, Phase 1 — streaming TTS).</div>
+    </div>
+
+    <!-- LOW -->
+    <h3 class="block">Low — polish, dead code &amp; broken links</h3>
+
+    <div class="issue c-low">
+      <div class="issue-top"><span class="sev low">Low</span><span class="issue-id">LINK-1</span>
+        <h4>Broken navigation links ship to users</h4></div>
+      <p><span class="loc">main.htm:1558</span> links to <code>contact.html</code> but the file is
+      <code>conctact.html</code> (typo → 404). <span class="loc">terms.html:193</span> links to
+      <code>kairos.html</code> which doesn't exist (404).</p>
+      <div class="fix"><b>Fix</b> Correct the filenames (or rename the files) and add a link-check to your
+      pre-deploy step.</div>
+    </div>
+
+    <div class="issue c-low">
+      <div class="issue-top"><span class="sev low">Low</span><span class="issue-id">UI-1</span>
+        <h4>Assorted broken UI &amp; dead panels</h4></div>
+      <p><span class="loc">manual.htm:952</span> has broken tag nesting that ejects cards from the grid;
+      <code>Setings.js</code> is an unreachable/unrouted panel with a dead voice handler; the signup-pane
+      "passkey" is a fake hint; onboarding "Skip" actually advances (<code>goStep(1)</code> = Next);
+      Microsoft/Apple sign-in are <code>socialSoon</code> stubs presented as if live.</p>
+      <div class="fix"><b>Fix</b> Delete dead code, make "Skip" skip, and either finish or hide the
+      coming-soon auth buttons so the UI doesn't over-promise.</div>
+    </div>
+
+    <div class="issue c-low">
+      <div class="issue-top"><span class="sev low">Low</span><span class="issue-id">PWA-1</span>
+        <h4>PWA icons are a duplicated non-square placeholder</h4></div>
+      <p><span class="loc">manifest.json:15</span> reuses one non-square placeholder for multiple sizes —
+      installed-app icon looks broken on home screens and in the install prompt.</p>
+      <div class="fix"><b>Fix</b> Generate proper maskable 192/512 square icons.</div>
+    </div>
+
+    <div class="issue c-low">
+      <div class="issue-top"><span class="sev low">Low</span><span class="issue-id">I18N-1</span>
+        <h4>"Multilingual" isn't real i18n</h4></div>
+      <p><code>Multilang.js:36–37</code> mis-detects Japanese kanji as Chinese, and the feature only injects a
+      "reply in language X" instruction rather than localizing the UI. Pricing copy is also inconsistent
+      (₦4,500/mo vs "$5 prepaid"), and the weather path sets a Nominatim <code>User-Agent</code> that browsers
+      ignore (a ToS risk, not a function bug).</p>
+      <div class="fix"><b>Fix</b> Use a real language-detection lib, reconcile the pricing copy to one source of
+      truth, and proxy Nominatim server-side with a compliant User-Agent (or use a paid geocoder).</div>
+    </div>
+  </section>
+
+  <!-- ═══ 5 · RATINGS ═══ -->
+  <section>
+    <div class="sec-head"><span class="sec-num">05</span><h2 class="sec-title">Feature scorecard — competitor's marks</h2></div>
+    <p class="sec-intro">
+      Scored the way a rival grades a target: what works, what's fragile, what's a facade. 1–10, low is bad.
+    </p>
+    <div class="ratings">
+      <div class="rate-row head"><span>Area</span><span style="text-align:right;">Score</span><span>Read</span></div>
+
+      <div class="rate-row">
+        <div class="rate-name">Security &amp; Auth<small>tokens · gates · secrets</small></div>
+        <div class="rate-score">6.2<small>/10</small></div>
+        <div><div class="meter m-mid"><i style="width:62%"></i></div><div class="rate-note">Good decorators &amp; admin gate, undone by committed secrets, no revocation, suspend bypass.</div></div>
+      </div>
+
+      <div class="rate-row">
+        <div class="rate-name">AI &amp; Voice engine<small>router · streaming · loop</small></div>
+        <div class="rate-score">6.5<small>/10</small></div>
+        <div><div class="meter m-mid"><i style="width:65%"></i></div><div class="rate-note">Clean network layer &amp; real router; sunk by the self-hearing loop and voice not streaming.</div></div>
+      </div>
+
+      <div class="rate-row">
+        <div class="rate-name">Payments<small>Paystack · plans</small></div>
+        <div class="rate-score">6.0<small>/10</small></div>
+        <div><div class="meter m-mid"><i style="width:60%"></i></div><div class="rate-note">Server-side verify is right; TOCTOU race and never-downgrading plans leak money.</div></div>
+      </div>
+
+      <div class="rate-row">
+        <div class="rate-name">Frontend features<small>vision · reminders · files</small></div>
+        <div class="rate-score">6.3<small>/10</small></div>
+        <div><div class="meter m-mid"><i style="width:63%"></i></div><div class="rate-note">Camera + screen vision is a genuine edge; reminders &amp; campaigns are half-real.</div></div>
+      </div>
+
+      <div class="rate-row">
+        <div class="rate-name">Admin panel<small>users · stats · config API</small></div>
+        <div class="rate-score">7.5<small>/10</small></div>
+        <div><div class="meter m-hi"><i style="width:75%"></i></div><div class="rate-note">Strongest area — server-gated, paginated, escaped. Loses points for the UI/API gap.</div></div>
+      </div>
+
+      <div class="rate-row">
+        <div class="rate-name">Infrastructure<small>store · workers · deploy</small></div>
+        <div class="rate-score">4.5<small>/10</small></div>
+        <div><div class="meter m-lo"><i style="width:45%"></i></div><div class="rate-note">Redis-not-installed + monolith + no scheduler = the weakest foundation.</div></div>
+      </div>
+
+      <div class="rate-row">
+        <div class="rate-name">Trust &amp; polish<small>policy · links · copy</small></div>
+        <div class="rate-score">5.0<small>/10</small></div>
+        <div><div class="meter m-mid"><i style="width:50%"></i></div><div class="rate-note">Inaccurate privacy policy + 404 links + fake buttons erode the credibility an assistant needs.</div></div>
+      </div>
+
+      <div class="rate-row" style="background:var(--surface-2);">
+        <div class="rate-name" style="font-family:var(--mono);letter-spacing:.05em;">OVERALL</div>
+        <div class="rate-score" style="color:var(--accent);">6.0<small>/10</small></div>
+        <div><div class="meter m-mid"><i style="width:60%"></i></div><div class="rate-note">Ambitious and mostly-working, standing on a trust foundation that needs a week of repair.</div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ 6 · ROADMAP ═══ -->
+  <section>
+    <div class="sec-head"><span class="sec-num">06</span><h2 class="sec-title">How KAIROS wins — the roadmap</h2></div>
+    <div class="thesis">
+      <p><strong>Blunt truth:</strong> KAIROS can't beat Claude, Gemini or GPT on raw model intelligence —
+      it's a router <em>over</em> them (OpenRouter, Groq). Trying to out-smart the labs is a losing game.</p>
+      <p><strong>Where it can win:</strong> being the assistant that is <strong>ambient, embodied and personal</strong>.
+      The frontier chat apps are a text box you visit. KAIROS is always-on, hands-free, sees through your camera
+      and screen, remembers you, and lives where you are (Naira/Paystack, local reality). That's a category the
+      labs don't serve well. Win there — and earn the trust an always-listening product requires.</p>
+    </div>
+
+    <div class="phase">
+      <div class="phase-tag"><span>Phase 0 — Foundation</span><span class="when">before any growth · ~1 week</span></div>
+      <h4>Earn the right to listen</h4>
+      <p>None of the cool features matter if the trust base is cracked. This is table stakes.</p>
+      <div class="feat"><span class="dot">01</span><div><b>Rotate every secret &amp; move to env/secret manager.</b> <span>Assume the committed keys are compromised.</span></div></div>
+      <div class="feat"><span class="dot">02</span><div><b>Fix the auth trio.</b> <span>Enforce suspension, add token revocation, move tokens to HttpOnly cookies + tighten CSP.</span></div></div>
+      <div class="feat"><span class="dot">03</span><div><b>Rewrite the privacy policy to the truth.</b> <span>Say what's stored and who sees it — then make that a selling point.</span></div></div>
+      <div class="feat"><span class="dot">04</span><div><b>Close the loops.</b> <span>Hard-gate the mic during TTS; add backoff to the recognizer restart.</span></div></div>
+    </div>
+
+    <div class="phase">
+      <div class="phase-tag"><span>Phase 1 — The core it's named for</span><span class="when">the "wow" · ~2 weeks</span></div>
+      <h4>Make the voice feel alive</h4>
+      <p>KAIROS = "the right moment." The interaction has to feel instant and natural, or the concept dies.</p>
+      <div class="feat"><span class="dot">01</span><div><b>Streaming TTS.</b> <span>Route voice through <code>askKairosStream</code> and speak on sentence boundaries as tokens arrive — sub-second first word.</span></div></div>
+      <div class="feat"><span class="dot">02</span><div><b>Barge-in.</b> <span>Let the user interrupt mid-reply; stop TTS the instant they speak. This is the single biggest "feels like Her" upgrade.</span></div></div>
+      <div class="feat"><span class="dot">03</span><div><b>Better wake + VAD.</b> <span>One shared audio graph, real voice-activity detection, no double mic. Fewer false wakes = trust.</span></div></div>
+    </div>
+
+    <div class="phase">
+      <div class="phase-tag"><span>Phase 2 — The assistant promise</span><span class="when">retention · ~3 weeks</span></div>
+      <h4>Do things when the app is closed</h4>
+      <p>An assistant that only works while you stare at it isn't one. This is what turns a demo into a habit.</p>
+      <div class="feat"><span class="dot">01</span><div><b>Server-side reminders via Web Push + email.</b> <span>Fire with the tab closed. Turn the facade (PROD-1) into the flagship.</span></div></div>
+      <div class="feat"><span class="dot">02</span><div><b>Persistent memory that compounds.</b> <span>You already store memories — surface them: "you mentioned X last week." Personal context is the labs' weak spot.</span></div></div>
+      <div class="feat"><span class="dot">03</span><div><b>Proactive nudges.</b> <span>Morning brief, reminder pre-alerts, "you asked me to follow up on…". Assistant, not chatbot.</span></div></div>
+    </div>
+
+    <div class="phase">
+      <div class="phase-tag"><span>Phase 3 — The moat</span><span class="when">differentiation · ongoing</span></div>
+      <h4>Be embedded in the user's real life</h4>
+      <p>Integrations and locality are things a general-purpose lab chat app won't build for your market.</p>
+      <div class="feat"><span class="dot">01</span><div><b>Integrations.</b> <span>Calendar, WhatsApp, email — let voice actually act, not just answer.</span></div></div>
+      <div class="feat"><span class="dot">02</span><div><b>Lean into vision.</b> <span>Camera + screen understanding is a real edge — build "point at this and ask" and "read my screen" flows the labs don't offer in-browser.</span></div></div>
+      <div class="feat"><span class="dot">03</span><div><b>Own the local market.</b> <span>Naira pricing, local languages done properly, offline-tolerant PWA. Be the assistant built for <em>here</em>.</span></div></div>
+    </div>
+  </section>
+
+  <footer>
+    KAIROS TEARDOWN · adversarial full-stack review · 2026-08-12<br>
+    1 critical · 7 high · 10 medium · 8 low · overall 6.0/10<br>
+    No secret values are reproduced in this document. File:line references point at the source, not the payload.
+  </footer>
+
+</div>

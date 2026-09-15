@@ -1,0 +1,98 @@
+/* ════════════════════════════════════════════════════════════════════
+   KAIROS — DESIGN TOKENS  (single source of truth)
+   ────────────────────────────────────────────────────────────────────
+   Every colour / radius / blur / motion value in the redesign is defined
+   here and referenced by var() elsewhere. Change the system from one place.
+
+   This file is intentionally *only* :root custom properties — it is safe
+   to link into every page; it paints nothing on its own.
+
+   Values come from kairos-design-package/CLAUDE_CODE_UI_BRIEF.md §1.
+   ════════════════════════════════════════════════════════════════════ */
+
+:root {
+  color-scheme: dark;               /* native selects / scrollbars / color+range inputs render dark */
+
+  /* ── Background ─────────────────────────────────────────────── */
+  --bg-base-start: #06070B;
+  --bg-base-end:   #0D0F16;
+
+  /* ── Glass ──────────────────────────────────────────────────── */
+  --glass-fill:        rgba(255, 255, 255, 0.08);   /* default surface (6–10% white) */
+  --glass-fill-weak:   rgba(255, 255, 255, 0.05);   /* recessed / large surfaces */
+  --glass-fill-strong: rgba(255, 255, 255, 0.12);   /* raised / hover surfaces */
+  --glass-border:      rgba(255, 255, 255, 0.12);
+  --glass-border-soft: rgba(255, 255, 255, 0.08);
+  --glass-highlight:   rgba(255, 255, 255, 0.16);   /* 1px top inner edge that sells the glass */
+  --glass-blur:        48px;
+  --glass-blur-sm:     20px;                         /* toasts / chrome where 48px is overkill */
+
+  --glass-radius-lg: 28px;   /* cards, panels, modals */
+  --glass-radius-md: 20px;   /* buttons, inputs, chips */
+  --glass-radius-sm: 14px;   /* small chips, tags */
+  --glass-radius-pill: 999px;
+
+  /* ── Accent gradient — THE signature colour, used sparingly ──── */
+  --accent-start: #6E8CFF;   /* indigo */
+  --accent-end:   #5BD8E0;   /* cyan   */
+  --accent-gradient: linear-gradient(135deg, var(--accent-start), var(--accent-end));
+  /* rgb component lists for building rgba() glows/tints from the accents */
+  --accent-start-rgb: 110, 140, 255;
+  --accent-end-rgb:    91, 216, 224;
+  --accent-mid: #64B2EA;     /* flat midpoint, for single-colour accents (focus, links) */
+  --accent-mid-rgb: 100, 178, 234;
+
+  /* ── Text ───────────────────────────────────────────────────── */
+  --text-primary:   #F2F3F5;   /* off-white — NEVER pure #FFFFFF */
+  --text-secondary: #9AA0AC;   /* muted gray-blue */
+  --text-tertiary:  #6C7280;   /* faint captions / disabled */
+  --text-on-accent: #0A0E1A;   /* dark ink for text that sits ON the accent gradient */
+
+  /* ── Error / warning accent (only place a second hue is allowed) */
+  --warn-color: #E8A55C;       /* soft amber */
+  --warn-rgb:   232, 165, 92;
+  --danger-color: #E86A6A;     /* muted red for destructive/stop actions */
+  --danger-rgb:   232, 106, 106;
+  --ok-color: #6FD08C;         /* muted green for connected/success ticks */
+  --ok-rgb:   111, 208, 140;
+
+  /* ── Elevation / shadows ────────────────────────────────────── */
+  --shadow-card:  0 8px 30px rgba(0, 0, 0, 0.35);
+  --shadow-panel: 0 24px 70px rgba(0, 0, 0, 0.55);
+  --shadow-toast: 0 12px 40px rgba(0, 0, 0, 0.45);
+  --glow-accent:  0 0 40px rgba(var(--accent-end-rgb), 0.25);
+  --focus-ring:   0 0 0 3px rgba(var(--accent-start-rgb), 0.55);
+
+  /* ── Type ───────────────────────────────────────────────────── */
+  /* Orbitron stays the brand/display face (Kairos identity); a clean
+     system-UI stack carries body/UI text — no new web-font dependency,
+     so the PWA still renders fully offline. Share Tech Mono is kept for
+     technical readouts (clock, data strip). */
+  --font-display: 'Orbitron', 'Segoe UI', system-ui, sans-serif;
+  --font-ui:      system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Inter, sans-serif;
+  --font-mono:    'Share Tech Mono', ui-monospace, 'Cascadia Code', monospace;
+
+  /* ── Motion (brief §5) ──────────────────────────────────────── */
+  --ease-glass: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-out:   cubic-bezier(0.33, 1, 0.68, 1);
+  --dur-fast:      140ms;   /* button press / toggle */
+  --dur-panel:     300ms;   /* Reminders / Memory / Device / History */
+  --dur-overlay:   380ms;   /* Camera / Screen-share / Text chat */
+  --dur-toast-in:  220ms;
+  --dur-toast-out: 180ms;
+
+  /* ════════════════════════════════════════════════════════════
+     COMPATIBILITY SHIM — do not remove these names.
+     Setings.js writes --cyan / --cyan-dim (theme switcher) and
+     --ring-color (orb-ring colour picker) at runtime, and legacy
+     rules across style.css + JS panels read them. We keep the names
+     alive but re-point their DEFAULTS onto the new accent palette so
+     the out-of-the-box look is on-brand. Setings.js THEMES.cyan and
+     DEFAULTS were updated to these same values so applyTheme() on load
+     does not re-impose the old #00d4ff.
+     ════════════════════════════════════════════════════════════ */
+  --cyan:       #5BD8E0;                         /* == --accent-end (default accent) */
+  --cyan-dim:   rgba(var(--accent-end-rgb), 0.35);
+  --ring-color: #5BD8E0;                         /* orb ring default; picker overrides */
+  --bg:         var(--bg-base-start);            /* legacy solid-bg var */
+}

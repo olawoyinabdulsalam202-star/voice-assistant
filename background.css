@@ -1,0 +1,115 @@
+/* ════════════════════════════════════════════════════════════════════
+   KAIROS — BACKGROUND & ATMOSPHERE  (one component, reused everywhere)
+   ────────────────────────────────────────────────────────────────────
+   Brief §1 rule 2: EVERY page gets the identical dark gradient + faint
+   grain + a soft accent glow behind the orb. No page gets a flat colour.
+
+   Usage: put `<div class="kx-bg" aria-hidden="true"></div>` as the first
+   child of <body> on every page. `body` also gets a base fill so there is
+   never a white flash before paint.
+
+   The decorative orb here is `.kx-orb` — deliberately NOT `.orb`/`#orb`,
+   which are the functional HUD orb owned by style.css + Setings.js.
+   ════════════════════════════════════════════════════════════════════ */
+
+html, body {
+  background-color: var(--bg-base-start);
+  color: var(--text-primary);
+}
+
+/* ── The universal atmosphere layer ─────────────────────────────── */
+.kx-bg {
+  position: fixed;
+  inset: 0;
+  z-index: -10;
+  pointer-events: none;
+  overflow: hidden;
+  background:
+    radial-gradient(140% 120% at 50% -10%, #0E1220 0%, transparent 55%),
+    linear-gradient(160deg, var(--bg-base-start) 0%, var(--bg-base-end) 100%);
+}
+
+/* faint grain — self-contained SVG noise, no external request */
+.kx-bg::before {
+  content: "";
+  position: absolute;
+  inset: -50%;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  opacity: 0.035;
+  mix-blend-mode: overlay;
+}
+
+/* soft accent glow that drifts slowly behind the orb */
+.kx-bg::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 42%;
+  width: min(90vw, 900px);
+  height: min(90vw, 900px);
+  transform: translate(-50%, -50%);
+  background:
+    radial-gradient(circle at 42% 40%, rgba(var(--accent-start-rgb), 0.20) 0%, transparent 60%),
+    radial-gradient(circle at 60% 62%, rgba(var(--accent-end-rgb), 0.16) 0%, transparent 62%);
+  filter: blur(30px);
+  animation: kx-glow-drift 22s var(--ease-out) infinite alternate;
+}
+
+@keyframes kx-glow-drift {
+  0%   { transform: translate(-52%, -50%) scale(1);    opacity: 0.85; }
+  100% { transform: translate(-48%, -44%) scale(1.12); opacity: 1;    }
+}
+
+/* A dimmer, receded variant for auth/onboarding where content leads */
+.kx-bg.kx-bg--quiet::after { opacity: 0.55; filter: blur(46px); }
+
+/* ── Decorative orb (landing hero, auth) ────────────────────────── */
+/* Always the brand indigo→cyan — Brief §1 rule 1. */
+.kx-orb {
+  --orb-size: 180px;
+  position: relative;
+  width: var(--orb-size);
+  height: var(--orb-size);
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 36% 30%, rgba(255,255,255,0.45) 0%, transparent 34%),
+    var(--accent-gradient);
+  box-shadow:
+    0 0 60px rgba(var(--accent-start-rgb), 0.35),
+    0 0 120px rgba(var(--accent-end-rgb), 0.25),
+    inset 0 0 40px rgba(255,255,255,0.10);
+  animation: kx-orb-breathe 6s var(--ease-out) infinite alternate;
+  isolation: isolate;
+}
+.kx-orb::after {
+  content: "";
+  position: absolute;
+  inset: -14%;
+  border-radius: 50%;
+  border: 1.5px solid rgba(var(--accent-end-rgb), 0.35);
+  mask: radial-gradient(circle, transparent 62%, #000 63%);
+  animation: kx-orb-ring 14s linear infinite;
+}
+.kx-orb--sm { --orb-size: 96px; }
+.kx-orb--lg { --orb-size: 240px; }
+
+/* auth: small, blurred, receded (Brief §4 row 5) */
+.kx-orb--receded {
+  --orb-size: 130px;
+  opacity: 0.6;
+  filter: blur(3px);
+  animation-duration: 8s;
+}
+
+@keyframes kx-orb-breathe {
+  0%   { transform: scale(1);    box-shadow: 0 0 60px rgba(var(--accent-start-rgb),0.30), 0 0 120px rgba(var(--accent-end-rgb),0.20), inset 0 0 40px rgba(255,255,255,0.10); }
+  100% { transform: scale(1.04); box-shadow: 0 0 80px rgba(var(--accent-start-rgb),0.42), 0 0 150px rgba(var(--accent-end-rgb),0.30), inset 0 0 46px rgba(255,255,255,0.14); }
+}
+@keyframes kx-orb-ring { to { transform: rotate(360deg); } }
+
+/* ── Motion sensitivity ─────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  .kx-bg::after,
+  .kx-orb,
+  .kx-orb::after { animation: none !important; }
+}

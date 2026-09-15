@@ -1,0 +1,61 @@
+{
+  "name": "K.A.I.R.O.S — Elite Dev",
+  "short_name": "KAIROS",
+  "description": "K.A.I.R.O.S - Kinetic Artificial Intelligence Real-time Operational System — AI Voice Assistant by Elite Dev",
+  "start_url": "/index.htm",
+  "scope": "/",
+  "id": "/index.htm",
+  "_comment_display": "B8: was 'fullscreen', which hides the status bar — no clock, no battery, no signal. That reads as broken rather than immersive. 'standalone' keeps the system bar and still looks like a real app. display_override gives desktop PWAs a native window.",
+  "display": "standalone",
+  "display_override": ["window-controls-overlay", "standalone"],
+  "_comment_orientation": "B8: 'portrait-primary' locked out tablets and landscape entirely. 'any' lets the layout adapt.",
+  "orientation": "any",
+  "background_color": "#06070B",
+  "theme_color": "#0D0F16",
+  "_comment_icons": "B7 FIX: 'any' now points at the real square 192/512 marks and 'maskable' at dedicated maskable files (extra safe-zone padding) instead of reusing a non-square image — this removes the cropped-logo look on Android. Files live in the served root.",
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-192-maskable.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "icon-512-maskable.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "categories": [
+    "productivity",
+    "utilities"
+  ],
+  "shortcuts": [
+    {
+      "name": "Text mode",
+      "short_name": "Text",
+      "description": "Type to K.A.I.R.O.S instead of speaking",
+      "url": "/index.htm?mode=text"
+    },
+    {
+      "name": "Settings",
+      "short_name": "Settings",
+      "description": "Voice, theme and plan settings",
+      "url": "/settings"
+    }
+  ],
+  "screenshots": []
+}

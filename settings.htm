@@ -1,0 +1,1029 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>KAIROS — Settings</title>
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png">
+  <link rel="apple-touch-icon" href="/apple-touch-icon-180.png">
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#0D0F16">
+  <link rel="stylesheet" href="/design-tokens.css">
+  <link rel="stylesheet" href="/background.css">
+  <link rel="stylesheet" href="/components.css">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    :root {
+      /* retokenized onto the design system (design-tokens.css) — names kept
+         so any runtime writes to --cyan / --cyan-dim / --ring-color resolve */
+      --cyan: var(--accent-end);
+      --cyan-dim: rgba(var(--accent-end-rgb), 0.35);
+      --cyan-faint: rgba(var(--accent-end-rgb), 0.08);
+      --bg: transparent;
+      --panel: var(--glass-fill);
+    }
+    body {
+      background: var(--bg);
+      color: var(--text-primary);
+      font-family: var(--font-ui);
+      min-height: 100vh;
+      padding: 1.5rem;
+    }
+    /* HUD scanline overlay retired — the shared .kx-bg is the only atmosphere */
+    .scanline { display: none; }
+    .container {
+      max-width: 900px; margin: 0 auto;
+      background: var(--glass-fill);
+      border: 1px solid var(--glass-border);
+      -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(140%);
+      backdrop-filter: blur(var(--glass-blur)) saturate(140%);
+      border-radius: var(--glass-radius-lg);
+      padding: 2rem;
+      box-shadow: var(--shadow-panel);
+    }
+    .header {
+      display: flex; justify-content: space-between; align-items: center;
+      border-bottom: 1px solid var(--glass-border); padding-bottom: 1rem; margin-bottom: 1.5rem;
+    }
+    .header h1 {
+      font-family: var(--font-display); font-size: 1.2rem; font-weight: 700;
+      color: var(--text-primary); letter-spacing: 0.08em;
+      display: inline-flex; align-items: center; gap: 0.5rem;
+    }
+    .header h1 .ic { width: 1.1em; height: 1.1em; color: var(--accent-end); }
+    .header h1 span { color: var(--text-primary); }
+    .header .back-btn {
+      background: var(--glass-fill-weak); border: 1px solid var(--glass-border); color: var(--text-secondary);
+      padding: 0.4rem 1rem; cursor: pointer; font-family: var(--font-mono); font-size: 0.75rem;
+      border-radius: var(--glass-radius-pill);
+      display: inline-flex; align-items: center; gap: 0.4rem;
+      transition: color var(--dur-fast) var(--ease-glass), border-color var(--dur-fast) var(--ease-glass), background var(--dur-fast) var(--ease-glass);
+    }
+    .header .back-btn .ic { width: 1.05em; height: 1.05em; }
+    .header .back-btn:hover { background: var(--glass-fill); border-color: var(--glass-highlight); color: var(--text-primary); }
+
+    .section {
+      border: 1px solid var(--glass-border);
+      border-radius: var(--glass-radius-md);
+      padding: 1.25rem; margin-bottom: 1rem;
+      background: var(--glass-fill-weak);
+    }
+    .section-title {
+      font-family: var(--font-mono); font-size: 0.7rem; font-weight: 700;
+      color: var(--accent-end); letter-spacing: 0.15em; margin-bottom: 1rem;
+      text-transform: uppercase;
+      display: flex; align-items: center; gap: 0.5rem;
+    }
+    .section-title::before {
+      content: ''; width: 3px; height: 0.85em; border-radius: 2px;
+      background: var(--accent-gradient); flex: 0 0 auto;
+    }
+
+    .profile-row {
+      display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;
+    }
+    .avatar {
+      width: 56px; height: 56px; border-radius: 50%;
+      border: 1px solid var(--glass-border);
+      display: flex; align-items: center; justify-content: center;
+      color: var(--accent-end);
+      background: var(--glass-fill);
+      flex-shrink: 0;
+    }
+    .avatar .ic { width: 26px; height: 26px; }
+    .profile-info { flex: 1; }
+    .profile-info .name { font-size: 1rem; color: var(--text-primary); font-family: var(--font-display); }
+    .profile-info .email { font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.2rem; }
+    .badge {
+      display: inline-block; padding: 0.2rem 0.7rem; font-size: 0.6rem;
+      font-family: var(--font-mono); letter-spacing: 0.1em; text-transform: uppercase;
+      border: 1px solid; border-radius: var(--glass-radius-pill);
+    }
+    .badge-free { border-color: var(--glass-border); color: var(--text-secondary); }
+    .badge-pro { border-color: var(--accent-end); color: var(--accent-end); background: rgba(var(--accent-end-rgb),0.08); }
+
+    .plan-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
+    .plan-card {
+      border: 1px solid var(--glass-border);
+      padding: 1rem; cursor: pointer; text-align: center;
+      border-radius: var(--glass-radius-md);
+      transition: border-color var(--dur-fast) var(--ease-glass), background var(--dur-fast) var(--ease-glass), transform var(--dur-fast) var(--ease-glass);
+      background: var(--glass-fill-weak);
+    }
+    .plan-card:hover { border-color: var(--glass-highlight); background: var(--glass-fill); transform: translateY(-2px); }
+    .plan-card.active { border-color: var(--accent-end); background: rgba(var(--accent-end-rgb),0.08); }
+    .plan-card .plan-name { font-family: var(--font-display); font-size: 0.8rem; color: var(--text-primary); margin-bottom: 0.3rem; }
+    .plan-card .plan-price { font-size: 0.7rem; color: var(--text-secondary); }
+    .plan-card .plan-status { font-size: 0.6rem; margin-top: 0.4rem; color: var(--accent-end); }
+
+    .btn {
+      padding: 0.5rem 1.25rem; cursor: pointer; font-family: var(--font-mono);
+      font-size: 0.75rem; letter-spacing: 0.05em;
+      transition: background var(--dur-fast) var(--ease-glass), border-color var(--dur-fast) var(--ease-glass), color var(--dur-fast) var(--ease-glass), box-shadow var(--dur-fast) var(--ease-glass);
+      border-radius: var(--glass-radius-sm);
+      border: 1px solid var(--glass-border); background: var(--glass-fill-weak); color: var(--text-secondary);
+      display: inline-flex; align-items: center; justify-content: center; gap: 0.45rem;
+    }
+    .btn .ic { width: 1.05em; height: 1.05em; flex: 0 0 auto; }
+    .btn:hover { color: var(--text-primary); border-color: var(--glass-highlight); background: var(--glass-fill); }
+    .btn-primary { border-color: rgba(var(--accent-end-rgb),0.5); color: var(--accent-end); background: rgba(var(--accent-end-rgb),0.06); }
+    .btn-primary:hover { background: rgba(var(--accent-end-rgb),0.12); border-color: var(--accent-end); color: var(--accent-end); box-shadow: 0 0 18px rgba(var(--accent-end-rgb),0.18); }
+    .btn-danger { border-color: rgba(var(--danger-rgb),0.45); color: var(--danger-color); background: rgba(var(--danger-rgb),0.06); }
+    .btn-danger:hover { background: rgba(var(--danger-rgb),0.14); border-color: var(--danger-color); color: var(--danger-color); }
+
+    .actions { display: flex; gap: 0.75rem; margin-top: 1rem; flex-wrap: wrap; }
+
+    .info-row { display: flex; justify-content: space-between; padding: 0.5rem 0; font-size: 0.75rem; border-bottom: 1px solid var(--glass-border-soft, rgba(255,255,255,0.06)); }
+    .info-row:last-child { border-bottom: none; }
+    .info-row .label { color: var(--text-secondary); }
+    .info-row .value { color: var(--text-primary); }
+
+    #speedSlider, #pitchSlider { accent-color: var(--accent-start); }
+    #ringColorInput, #orbColorRow input[type="color"] { border-radius: var(--glass-radius-sm); }
+
+    .toast {
+      position: fixed; top: 1rem; right: 1rem;
+      background: var(--glass-fill-strong); border: 1px solid var(--glass-border);
+      -webkit-backdrop-filter: blur(var(--glass-blur-sm)) saturate(140%);
+      backdrop-filter: blur(var(--glass-blur-sm)) saturate(140%);
+      padding: 0.75rem 1rem; font-size: 0.75rem; color: var(--text-primary);
+      border-radius: var(--glass-radius-sm);
+      box-shadow: var(--shadow-card);
+      z-index: 1000; opacity: 0; transform: translateY(-10px);
+      transition: opacity var(--dur-toast-in) var(--ease-glass), transform var(--dur-toast-in) var(--ease-glass);
+    }
+    .toast.show { opacity: 1; transform: translateY(0); }
+
+    @media (max-width: 600px) {
+      .plan-cards { grid-template-columns: 1fr; }
+      body { padding: 0.75rem; }
+      .container { padding: 1rem; }
+    }
+
+    /* ═══════════════════════════════════════════════
+       2-PANE SETTINGS SHELL (B2) — left nav rail +
+       right card pane. Pure layout/appearance; every
+       control id and handler is unchanged.
+       ═══════════════════════════════════════════════ */
+    .set-shell {
+      max-width: none; margin: 0 auto;
+      display: grid; grid-template-columns: 264px 1fr; gap: 1.25rem;
+      align-items: start;
+    }
+    .set-rail {
+      position: sticky; top: 0;
+      display: flex; flex-direction: column; gap: 1rem;
+      background: var(--glass-fill);
+      border: 1px solid var(--glass-border);
+      border-radius: var(--glass-radius-lg);
+      padding: 1.1rem;
+      -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(140%);
+      backdrop-filter: blur(var(--glass-blur)) saturate(140%);
+      box-shadow: var(--shadow-panel);
+    }
+    .set-brand {
+      font-family: var(--font-display); font-size: 0.9rem; letter-spacing: 0.16em;
+      color: var(--text-primary); display: flex; align-items: center; gap: 0.5rem;
+    }
+    .set-brand .ic { width: 1.05em; height: 1.05em; color: var(--accent-end); }
+    /* Mobile-only "‹ Back" at the very top of the grouped list. Hidden on
+       desktop; the ≤820px block reveals it. Reuses the existing goBack()
+       handler — no new logic, just a second entry point the phone layout needs. */
+    .set-mobile-top-back {
+      display: none;
+      align-items: center; gap: 0.3rem; align-self: flex-start;
+      background: none; border: none; padding: 0.2rem 0;
+      color: var(--accent-end); cursor: pointer;
+      font-family: var(--font-ui); font-size: 0.95rem;
+    }
+    .set-mobile-top-back .ic { width: 1.2em; height: 1.2em; }
+    .set-profile {
+      display: flex; align-items: center; gap: 0.7rem;
+      padding-bottom: 1rem; border-bottom: 1px solid var(--glass-border-soft);
+    }
+    .set-profile__info { flex: 1; min-width: 0; }
+    .set-profile__info .name {
+      font-family: var(--font-display); font-size: 0.9rem; color: var(--text-primary);
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .set-profile__info .email {
+      font-size: 0.7rem; color: var(--text-secondary); margin-top: 0.15rem;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .set-nav { display: flex; flex-direction: column; gap: 0.25rem; }
+    .set-nav__item {
+      display: flex; align-items: center; gap: 0.7rem;
+      padding: 0.6rem 0.7rem; border-radius: var(--glass-radius-md);
+      background: transparent; border: 1px solid transparent; color: var(--text-secondary);
+      font-family: var(--font-ui); font-size: 0.85rem; letter-spacing: 0.02em;
+      text-align: left; cursor: pointer;
+      transition: background var(--dur-fast) var(--ease-glass),
+                  color var(--dur-fast) var(--ease-glass),
+                  border-color var(--dur-fast) var(--ease-glass);
+    }
+    .set-nav__item .ic { width: 1.05em; height: 1.05em; flex: none; color: currentColor; }
+    .set-nav__item:hover { background: var(--glass-fill-weak); color: var(--text-primary); }
+    .set-nav__item.active {
+      color: var(--text-primary);
+      background: linear-gradient(135deg, rgba(var(--accent-start-rgb), 0.20), rgba(var(--accent-end-rgb), 0.14));
+      border-color: rgba(var(--accent-start-rgb), 0.35);
+    }
+    .set-nav__item.active .ic { color: var(--accent-end); }
+    .set-rail__foot { margin-top: auto; padding-top: 1rem; border-top: 1px solid var(--glass-border-soft); }
+    .set-rail__foot .btn { width: 100%; }
+
+    .set-pane { min-width: 0; display: flex; flex-direction: column; gap: 1rem; }
+    .set-pane__head {
+      display: flex; align-items: flex-start; justify-content: space-between;
+      gap: 1rem; flex-wrap: wrap;
+    }
+    .set-pane__title { font-family: var(--font-display); font-size: 1.15rem; letter-spacing: 0.06em; color: var(--text-primary); }
+    .set-pane__sub { font-size: 0.72rem; color: var(--text-secondary); margin-top: 0.25rem; }
+    .set-pane__actions { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+
+    .set-tab { display: flex; flex-direction: column; gap: 1rem; }
+    .set-tab[hidden] { display: none; }
+    .set-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 1rem; align-items: start; }
+    .set-card {
+      background: var(--glass-fill-weak); border: 1px solid var(--glass-border);
+      border-radius: var(--glass-radius-md); padding: 1.15rem;
+    }
+    .set-card__title {
+      font-family: var(--font-mono); font-size: 0.68rem; font-weight: 700;
+      letter-spacing: 0.15em; text-transform: uppercase; color: var(--accent-end);
+      margin-bottom: 0.9rem; display: flex; align-items: center; gap: 0.5rem;
+    }
+    .set-card__title .ic { width: 1em; height: 1em; }
+    .set-field { margin-bottom: 1.1rem; }
+    .set-field:last-child { margin-bottom: 0; }
+    .set-field > .label { display: block; font-size: 0.72rem; color: var(--text-secondary); margin-bottom: 0.5rem; }
+    #account-notifications:not(:empty) {
+      background: var(--glass-fill-weak); border: 1px solid var(--glass-border);
+      border-radius: var(--glass-radius-md); padding: 1rem;
+    }
+
+    /* Range sliders with accent fill (paintRange sets --fill on WebKit;
+       Firefox fills natively via ::-moz-range-progress). */
+    input[type="range"].kx-range {
+      -webkit-appearance: none; appearance: none;
+      width: 100%; height: 16px; margin: 0.55rem 0; background: transparent; cursor: pointer;
+    }
+    input[type="range"].kx-range::-webkit-slider-runnable-track {
+      height: 6px; border-radius: 999px; background: var(--glass-fill-strong);
+      background-image: linear-gradient(90deg, var(--accent-start), var(--accent-end));
+      background-size: var(--fill, 50%) 100%; background-repeat: no-repeat;
+    }
+    input[type="range"].kx-range::-webkit-slider-thumb {
+      -webkit-appearance: none; appearance: none; margin-top: -5px;
+      width: 16px; height: 16px; border-radius: 50%;
+      background: var(--text-primary); border: 2px solid var(--accent-end);
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+    }
+    input[type="range"].kx-range::-moz-range-track { height: 6px; border-radius: 999px; background: var(--glass-fill-strong); }
+    input[type="range"].kx-range::-moz-range-progress {
+      height: 6px; border-radius: 999px;
+      background: linear-gradient(90deg, var(--accent-start), var(--accent-end));
+    }
+    input[type="range"].kx-range::-moz-range-thumb {
+      width: 14px; height: 14px; border-radius: 50%;
+      background: var(--text-primary); border: 2px solid var(--accent-end);
+    }
+
+    /* Color inputs → rounded swatch chips */
+    #ringColorInput, #orbColorRow input[type="color"] { -webkit-appearance: none; appearance: none; padding: 0; }
+    #ringColorInput::-webkit-color-swatch-wrapper,
+    #orbColorRow input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; }
+    #ringColorInput::-webkit-color-swatch,
+    #orbColorRow input[type="color"]::-webkit-color-swatch { border: none; border-radius: 8px; }
+    #ringColorInput::-moz-color-swatch,
+    #orbColorRow input[type="color"]::-moz-color-swatch { border: none; border-radius: 8px; }
+
+    /* Privacy tab link rows */
+    .set-link {
+      display: flex; align-items: center; gap: 0.7rem;
+      padding: 0.85rem 1rem; border-radius: var(--glass-radius-md);
+      background: var(--glass-fill-weak); border: 1px solid var(--glass-border);
+      color: var(--text-primary); text-decoration: none; font-size: 0.82rem;
+      transition: background var(--dur-fast) var(--ease-glass),
+                  border-color var(--dur-fast) var(--ease-glass),
+                  transform var(--dur-fast) var(--ease-glass);
+    }
+    .set-link:hover { background: var(--glass-fill); border-color: var(--glass-highlight); transform: translateY(-1px); }
+    .set-link .ic { width: 1.1em; height: 1.1em; color: var(--accent-end); flex: none; }
+    .set-link__text { flex: 1; min-width: 0; }
+    .set-link__text small { display: block; color: var(--text-secondary); font-size: 0.68rem; margin-top: 0.15rem; }
+    .set-link__arrow { color: var(--text-tertiary); }
+
+    /* ═══════════════════════════════════════════════
+       MOBILE (≤820px) — iOS-style grouped settings list.
+       The desktop 2-pane collapses to a single column that
+       reads top → bottom: a Back control + "SETTINGS" heading,
+       the profile banner, ONE rounded container whose rows are
+       the setting categories (icon · label · chevron), a
+       separate Log Out button, then the selected category's
+       detail panel. Layout/appearance only — every id, the
+       showSettingsTab/goBack/logout handlers and the tab flow
+       are unchanged. */
+    @media (max-width: 820px) {
+      body { padding: 1rem 0.9rem 2rem; }
+
+      .set-shell {
+        display: flex; flex-direction: column; gap: 1rem;
+        max-width: 560px;
+      }
+
+      /* rail is now the top "menu" — drop its own card chrome */
+      .set-rail {
+        position: static;
+        background: none; border: none; box-shadow: none;
+        -webkit-backdrop-filter: none; backdrop-filter: none;
+        padding: 0; gap: 0.9rem;
+      }
+
+      .set-mobile-top-back { display: inline-flex; }
+
+      /* brand → large page heading */
+      .set-brand { font-size: 1.5rem; letter-spacing: 0.02em; }
+
+      /* profile reads like the iOS account banner */
+      .set-profile {
+        background: var(--glass-fill-weak); border: 1px solid var(--glass-border);
+        border-radius: var(--glass-radius-lg); padding: 0.9rem 1rem;
+      }
+
+      /* THE grouped container: one rounded card, rows split by hairlines */
+      .set-nav {
+        gap: 0;
+        background: var(--glass-fill-weak);
+        border: 1px solid var(--glass-border);
+        border-radius: var(--glass-radius-lg);
+        overflow: hidden;
+      }
+      .set-nav__item {
+        width: 100%;
+        border: none; border-radius: 0;
+        border-bottom: 1px solid var(--glass-border-soft);
+        padding: 0.95rem 1rem;
+        font-size: 0.95rem;
+        justify-content: flex-start;
+      }
+      .set-nav__item:last-child { border-bottom: none; }
+      .set-nav__item .ic { width: 1.2em; height: 1.2em; color: var(--accent-end); }
+      /* right-hand chevron on every row (CSS-drawn, no asset) */
+      .set-nav__item::after {
+        content: ""; margin-left: auto; flex: none;
+        width: 7px; height: 7px;
+        border-right: 2px solid var(--text-tertiary);
+        border-bottom: 2px solid var(--text-tertiary);
+        transform: rotate(-45deg);
+      }
+      .set-nav__item.active {
+        background: linear-gradient(135deg, rgba(var(--accent-start-rgb),0.20), rgba(var(--accent-end-rgb),0.14));
+      }
+
+      /* Log Out sits on its own beneath the container */
+      .set-rail__foot { margin-top: 0; padding-top: 0; border-top: none; }
+      .set-rail__foot .btn { width: 100%; }
+
+      /* the detail pane follows the menu; its header Back is redundant now
+         that Back sits at the very top, so hide just that one control */
+      .set-pane__head .back-btn { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="kx-bg" aria-hidden="true"></div>
+<div class="scanline"></div>
+
+<div class="set-shell">
+  <!-- LEFT NAV RAIL -->
+  <aside class="set-rail">
+    <!-- Mobile-only Back at the top of the grouped list (desktop hides it via
+         CSS). Same goBack() the pane-head Back already calls — no new logic. -->
+    <button type="button" class="set-mobile-top-back" onclick="goBack()" aria-label="Back">
+      <svg class="ic" aria-hidden="true"><use href="/icons.svg#ic-chevron-left"/></svg>Back
+    </button>
+    <div class="set-brand"><svg class="ic" aria-hidden="true"><use href="/icons.svg#ic-gear"/></svg>SETTINGS</div>
+
+    <div class="set-profile">
+      <div class="avatar" id="avatar"><svg class="ic" aria-hidden="true"><use href="/icons.svg#ic-user"/></svg></div>
+      <div class="set-profile__info">
+        <div class="name" id="displayName">—</div>
+        <div class="email" id="displayEmail">—</div>
+      </div>
+    </div>
+    <div style="margin-top:-0.4rem;"><span class="badge" id="planBadge">FREE</span></div>
+
+    <nav class="set-nav">
+      <button type="button" class="set-nav__item active" data-tab="account" onclick="showSettingsTab('account')"><svg class="ic" aria-hidden="true"><use href="/icons.svg#ic-user"/></svg>Account</button>
+      <button type="button" class="set-nav__item" data-tab="voice" onclick="showSettingsTab('voice')"><svg class="ic" aria-hidden="true"><use href="/icons.svg#ic-volume"/></svg>Voice</button>
+      <button type="button" class="set-nav__item" data-tab="appearance" onclick="showSettingsTab('appearance')"><svg class="ic" aria-hidden="true"><use href="/icons.svg#ic-palette"/></svg>Appearance</button>
+      <button type="button" class="set-nav__item" data-tab="plan" onclick="showSettingsTab('plan')"><svg class="ic" aria-hidden="true"><use href="/icons.svg#ic-credit-card"/></svg>Plan</button>
+      <button type="button" class="set-nav__item" data-tab="privacy" onclick="showSettingsTab('privacy')"><svg class="ic" aria-hidden="true"><use href="/icons.svg#ic-shield-check"/></svg>Privacy</button>
+    </nav>
+
+    <div class="set-rail__foot">
+      <button class="btn btn-danger" onclick="logout()"><svg class="ic" aria-hidden="true"><use href="/icons.svg#ic-logout"/></svg>LOG OUT</button>
+    </div>
+  </aside>
+
+  <!-- RIGHT CARD PANE -->
+  <main class="set-pane">
+    <header class="set-pane__head">
+      <div>
+        <h1 class="set-pane__title" id="paneTitle">Account</h1>
+        <p class="set-pane__sub" id="paneSub">Your profile, usage and account status.</p>
+      </div>
+      <div class="set-pane__actions">
+        <button class="btn" onclick="refreshData()"><svg class="ic" aria-hidden="true"><use href="/icons.svg#ic-refresh"/></svg>REFRESH</button>
+        <button class="back-btn" onclick="goBack()"><svg class="ic" aria-hidden="true"><use href="/icons.svg#ic-chevron-left"/></svg>BACK</button>
+      </div>
+    </header>
+
+    <!-- ACCOUNT -->
+    <section class="set-tab" data-panel="account">
+      <div class="set-cards">
+        <div class="set-card">
+          <div class="set-card__title"><svg class="ic" aria-hidden="true"><use href="/icons.svg#ic-user"/></svg>Account</div>
+          <div class="info-row"><span class="label">Role</span><span class="value" id="accRole">—</span></div>
+          <div class="info-row"><span class="label">Onboarded</span><span class="value" id="accOnboarded">—</span></div>
+          <div class="info-row"><span class="label">Plan Renews</span><span class="value" id="accExpiry">—</span></div>
+        </div>
+        <div class="set-card">
+          <div class="set-card__title"><svg class="ic" aria-hidden="true"><use href="/icons.svg#ic-chart"/></svg>Usage</div>
+          <div class="info-row"><span class="label">Messages Today</span><span class="value" id="accMsgs">—</span></div>
+          <div class="info-row"><span class="label">Daily Limit</span><span class="value" id="accLimit">—</span></div>
+          <div class="info-row"><span class="label">Files Shared</span><span class="value" id="accFiles">—</span></div>
+          <div class="info-row"><span class="label">Camera Analyses</span><span class="value" id="accVision">—</span></div>
+          <div class="info-row"><span class="label">Screen Analyses</span><span class="value" id="accScreen">—</span></div>
+          <div class="info-row"><span class="label">Saved Memories</span><span class="value" id="accMemories">—</span></div>
+          <div class="info-row"><span class="label">Active Reminders</span><span class="value" id="accReminders">—</span></div>
+        </div>
+      </div>
+      <div id="account-notifications"></div>
+    </section>
+
+    <!-- VOICE -->
+    <section class="set-tab" data-panel="voice" hidden>
+      <div class="set-card">
+        <div class="set-card__title"><svg class="ic" aria-hidden="true"><use href="/icons.svg#ic-volume"/></svg>Voice &amp; Speech</div>
+        <div class="set-field">
+          <span class="label">Voice</span>
+          <select id="voiceSelect" style="width:100%;font-size:0.75rem;"></select>
+        </div>
+        <div class="set-field">
+          <span class="label">Speed <span id="speedVal" style="color:var(--cyan);"></span></span>
+          <input type="range" id="speedSlider" class="kx-range" min="0.5" max="2.0" step="0.05">
+        </div>
+        <div class="set-field">
+          <span class="label">Pitch <span id="pitchVal" style="color:var(--cyan);"></span></span>
+          <input type="range" id="pitchSlider" class="kx-range" min="0.1" max="2.0" step="0.05">
+        </div>
+        <div class="actions" style="margin-top:0.5rem;">
+          <button class="btn btn-primary" onclick="testVoice()"><svg class="ic" aria-hidden="true"><use href="/icons.svg#ic-play"/></svg>TEST VOICE</button>
+          <button class="btn" style="border-color:var(--glass-border);color:var(--text-secondary);" onclick="resetVoiceSettings()"><svg class="ic" aria-hidden="true"><use href="/icons.svg#ic-refresh"/></svg>RESET TO DEFAULT</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- APPEARANCE -->
+    <section class="set-tab" data-panel="appearance" hidden>
+      <div class="set-cards">
+        <div class="set-card">
+          <div class="set-card__title"><svg class="ic" aria-hidden="true"><use href="/icons.svg#ic-palette"/></svg>Theme</div>
+          <div class="set-field">
+            <span class="label">Accent Theme</span>
+            <div id="themeRow" style="display:flex;gap:0.5rem;flex-wrap:wrap;"></div>
+          </div>
+          <div class="set-field">
+            <span class="label">Ring Color</span>
+            <input type="color" id="ringColorInput" style="width:48px;height:32px;background:none;border:1px solid var(--cyan-dim);cursor:pointer;">
+          </div>
+        </div>
+        <div class="set-card">
+          <div class="set-card__title"><svg class="ic" aria-hidden="true"><use href="/icons.svg#ic-sparkle"/></svg>Orb State Colors</div>
+          <div id="orbColorRow" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(92px,1fr));gap:.65rem;"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- PLAN -->
+    <section class="set-tab" data-panel="plan" hidden>
+      <div class="set-card">
+        <div class="set-card__title"><svg class="ic" aria-hidden="true"><use href="/icons.svg#ic-credit-card"/></svg>Your Plan</div>
+        <div class="plan-cards">
+          <div class="plan-card active" id="planFree" onclick="switchPlan('free')">
+            <div class="plan-name">FREE</div>
+            <div class="plan-price">25 messages / day</div>
+            <div class="plan-status" id="freeStatus">✓ CURRENT</div>
+          </div>
+          <div class="plan-card" id="planPro" onclick="switchPlan('pro')">
+            <div class="plan-name">PRO</div>
+            <div class="plan-price">₦4,500 / month</div>
+            <div class="plan-status" id="proStatus">UPGRADE</div>
+          </div>
+        </div>
+      </div>
+      <div class="set-card">
+        <div class="set-card__title"><svg class="ic" aria-hidden="true"><use href="/icons.svg#ic-users"/></svg>Referrals</div>
+        <div class="info-row"><span class="label">Referral Link</span><button class="btn btn-primary" id="copyReferral" type="button" style="padding:.3rem .6rem;display:none;">COPY</button></div>
+        <div class="info-row"><span class="label">Referral Rewards</span><span class="value" id="referralProgress">—</span></div>
+        <button class="btn btn-primary" id="claimReferral" type="button" style="display:none;margin-top:6px;">CLAIM REWARD</button>
+      </div>
+    </section>
+
+    <!-- PRIVACY -->
+    <section class="set-tab" data-panel="privacy" hidden>
+      <div class="set-card">
+        <div class="set-card__title"><svg class="ic" aria-hidden="true"><use href="/icons.svg#ic-shield-check"/></svg>Privacy &amp; Legal</div>
+        <a class="set-link" href="/privacy.html" target="_blank" rel="noopener">
+          <svg class="ic" aria-hidden="true"><use href="/icons.svg#ic-lock"/></svg>
+          <span class="set-link__text">Privacy Policy<small>How your data is collected and used</small></span>
+          <svg class="ic set-link__arrow" aria-hidden="true"><use href="/icons.svg#ic-chevron-right"/></svg>
+        </a>
+        <a class="set-link" href="/terms.html" target="_blank" rel="noopener" style="margin-top:.6rem;">
+          <svg class="ic" aria-hidden="true"><use href="/icons.svg#ic-file-text"/></svg>
+          <span class="set-link__text">Terms of Service<small>The rules for using KAIROS</small></span>
+          <svg class="ic set-link__arrow" aria-hidden="true"><use href="/icons.svg#ic-chevron-right"/></svg>
+        </a>
+        <a class="set-link" href="/contact.html" target="_blank" rel="noopener" style="margin-top:.6rem;">
+          <svg class="ic" aria-hidden="true"><use href="/icons.svg#ic-mail"/></svg>
+          <span class="set-link__text">Contact &amp; Support<small>Get help or send feedback</small></span>
+          <svg class="ic set-link__arrow" aria-hidden="true"><use href="/icons.svg#ic-chevron-right"/></svg>
+        </a>
+        <a class="set-link" href="/manual.htm" target="_blank" rel="noopener" style="margin-top:.6rem;">
+          <svg class="ic" aria-hidden="true"><use href="/icons.svg#ic-info"/></svg>
+          <span class="set-link__text">User Manual<small>Learn what KAIROS can do</small></span>
+          <svg class="ic set-link__arrow" aria-hidden="true"><use href="/icons.svg#ic-chevron-right"/></svg>
+        </a>
+      </div>
+      <div class="set-card">
+        <div class="set-card__title"><svg class="ic" aria-hidden="true"><use href="/icons.svg#ic-logout"/></svg>Session</div>
+        <p style="font-size:.78rem;color:var(--text-secondary);margin-bottom:.9rem;">Sign out of KAIROS on this device.</p>
+        <button class="btn btn-danger" onclick="logout()"><svg class="ic" aria-hidden="true"><use href="/icons.svg#ic-logout"/></svg>LOG OUT</button>
+      </div>
+    </section>
+  </main>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="/dropdown.js"></script>
+<script>
+  let currentUser = null;
+
+  async function fetchMe() {
+    try {
+      const token = localStorage.getItem('kairos_token') || '';
+      const r = await fetch('/api/user/me', { headers: { 'Authorization': `Bearer ${token}` } });
+      if (r.status === 401) {
+        showToast('Not logged in — redirecting');
+        setTimeout(() => window.location.href = '/auth.htm', 1500);
+        return null;
+      }
+      const data = await r.json();
+      if (data.error) { showToast(data.error); return null; }
+      return data;
+    } catch (e) {
+      showToast('Failed to load profile');
+      return null;
+    }
+  }
+
+  async function loadProfile() {
+    const user = await fetchMe();
+    if (!user) return;
+    currentUser = user;
+
+    document.getElementById('displayName').textContent = user.name || user.preferred_name || user.email;
+    document.getElementById('displayEmail').textContent = user.email;
+    document.getElementById('accRole').textContent = user.role || 'user';
+    document.getElementById('accMsgs').textContent = user.messages_used_today ?? '—';
+    document.getElementById('accLimit').textContent = user.daily_limit ?? 'Unlimited';
+    document.getElementById('accOnboarded').textContent = user.onboarded ? '✓ YES' : '✗ NO';
+    const referralBtn = document.getElementById('copyReferral');
+    if (referralBtn && user.referral_code) {
+      referralBtn.style.display = '';
+      referralBtn.onclick = async () => {
+        const link = `${location.origin}/auth.htm?ref=${encodeURIComponent(user.referral_code)}`;
+        await navigator.clipboard.writeText(link);
+        showToast('Referral link copied');
+      };
+    }
+    const referral = user.referral || {};
+    const progress = document.getElementById('referralProgress');
+    const claim = document.getElementById('claimReferral');
+    if (progress && referral.enabled) {
+      const required = Number(referral.required_referrals || 5);
+      const available = Math.floor(Number(referral.count || 0) / required) - Number(referral.claimed || 0);
+      progress.textContent = `${Number(referral.count || 0)} / ${required} verified (${Number(referral.credits || 0)} credits)`;
+      if (claim && available > 0) {
+        claim.style.display = '';
+        claim.onclick = async () => {
+          const token = localStorage.getItem('kairos_token') || '';
+          const r = await fetch('/api/referrals/claim', { method:'POST', headers:{Authorization:`Bearer ${token}`} });
+          const d = await r.json();
+          showToast(r.ok ? d.message : (d.error || 'Unable to claim reward'));
+          if (r.ok) loadProfile();
+        };
+      }
+    }
+    document.getElementById('accFiles').textContent = user.file_upload_limit === null
+      ? `${user.file_uploads_used} (unlimited)`
+      : `${user.file_uploads_used} / ${user.file_upload_limit}`;
+    const usage = user.feature_usage_today || {};
+    const limits = user.feature_limits || {};
+    const usageText = (key) => limits[key] == null
+      ? `${usage[key] || 0} (unlimited)`
+      : `${usage[key] || 0} / ${limits[key]}`;
+    document.getElementById('accVision').textContent = usageText('vision');
+    document.getElementById('accScreen').textContent = usageText('screen');
+    document.getElementById('accMemories').textContent = usageText('memories');
+    document.getElementById('accReminders').textContent = usageText('active_reminders');
+    loadAccountNotifications();
+
+    const badge = document.getElementById('planBadge');
+    const freeCard = document.getElementById('planFree');
+    const proCard = document.getElementById('planPro');
+    const freeStatus = document.getElementById('freeStatus');
+    const proStatus = document.getElementById('proStatus');
+
+    if (user.is_pro) {
+      badge.textContent = 'PRO';
+      badge.className = 'badge badge-pro';
+      freeCard.classList.remove('active');
+      proCard.classList.add('active');
+      freeStatus.textContent = 'DOWNGRADE';
+
+      // Plans expire now (they previously never did — one payment bought
+      // Pro permanently), so show the user where they stand.
+      if (user.in_grace_period) {
+        proStatus.textContent = '⚠ EXPIRED — GRACE PERIOD';
+      } else if (user.plan_days_left != null && user.plan_days_left <= 7) {
+        proStatus.textContent = `⚠ ${user.plan_days_left}d LEFT`;
+      } else {
+        proStatus.textContent = '✓ ACTIVE';
+      }
+
+      const expiryEl = document.getElementById('accExpiry');
+      if (expiryEl) {
+        expiryEl.textContent = user.plan_expires_at
+          ? new Date(user.plan_expires_at).toLocaleDateString(undefined,
+              { year: 'numeric', month: 'short', day: 'numeric' })
+          : 'No expiry';
+      }
+    } else {
+      badge.textContent = 'FREE';
+      badge.className = 'badge badge-free';
+      freeCard.classList.add('active');
+      proCard.classList.remove('active');
+      freeStatus.textContent = '✓ CURRENT';
+      proStatus.textContent = 'UPGRADE';
+    }
+  }
+
+  async function loadAccountNotifications() {
+    const target = document.getElementById('account-notifications');
+    if (!target) return;
+    try {
+      const token = localStorage.getItem('kairos_token') || '';
+      const response = await fetch('/api/notifications', { headers: { Authorization: `Bearer ${token}` }, cache: 'no-store' });
+      const data = await response.json();
+      const rows = data.notifications || [];
+      target.innerHTML = rows.length ? `<div style="font-size:.65rem;color:var(--cyan);margin-bottom:6px;">NOTIFICATIONS</div>${rows.map(n => `<div class="info-row" id="account-notification-${Number(n.id)}" style="display:block;background:rgba(var(--accent-end-rgb),.06);padding:8px;margin:4px 0;"><b>${escapeHtml(n.subject || 'KAIROS')}</b><div style="font-size:.7rem;color:var(--text-secondary);margin-top:3px;">${escapeHtml(n.body || '')}</div><button type="button" class="btn btn-primary" style="padding:.2rem .45rem;margin-top:5px;cursor:pointer;" onclick="dismissAccountNotification(${Number(n.id)}, this)">CLOSE</button></div>`).join('')}` : '';
+    } catch (e) { /* notifications are supplementary */ }
+  }
+
+  function escapeHtml(value) {
+    return String(value == null ? '' : value).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+
+  async function dismissAccountNotification(id, button) {
+    const token = localStorage.getItem('kairos_token') || '';
+    const row = button?.closest('.info-row') || document.getElementById(`account-notification-${id}`);
+    if (row) row.remove();
+    fetch(`/api/notifications/${id}/read`, { method: 'PATCH', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' } }).catch(() => {});
+  }
+
+  async function switchPlan(plan) {
+    if (!currentUser) return;
+    if (plan === 'pro' && !currentUser.is_pro) {
+      startPaystack('pro');
+      return;
+    }
+    if (plan === 'free' && currentUser.is_pro) {
+      if (!confirm('Downgrade to Free? You\'ll lose Pro features.')) return;
+      // Ideally call API — for now just show toast
+      showToast('Contact admin to downgrade, or visit /admin');
+    }
+  }
+
+  async function logout() {
+    const token = localStorage.getItem('kairos_token') || '';
+    if (token) {
+      try {
+        await fetch('/api/auth/logout', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}` }
+        });
+      } catch (e) {
+        // Local logout must still complete if the network is unavailable.
+      }
+    }
+    ['kairos_token','kairos_role','kairos_email','kairos_name','kairos_preferred_name','kairos_plan','kairos_onboarded']
+      .forEach(k => localStorage.removeItem(k));
+    showToast('Logged out');
+    setTimeout(() => window.location.href = '/auth.htm', 1000);
+  }
+
+  function refreshData() { loadProfile(); }
+
+  // Admin quota edits can happen while this page is already open in
+  // another tab/device. Keep the displayed account limits current.
+  setInterval(() => {
+    if (!document.hidden && localStorage.getItem('kairos_token')) loadProfile();
+  }, 30000);
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden && localStorage.getItem('kairos_token')) loadProfile();
+  });
+
+  // ════════════════════════════════════════
+  //  UPGRADE TO PRO — opens the Paystack
+  //  checkout right here. Paystack's own
+  //  popup has a close (✕) button, so the
+  //  user can cancel without paying and
+  //  nothing changes on their account.
+  // ════════════════════════════════════════
+  async function startPaystack(plan) {
+    const proStatus = document.getElementById('proStatus');
+    const originalLabel = proStatus.textContent;
+    proStatus.textContent = 'LOADING...';
+
+    let config;
+    try {
+      config = await (await fetch('/api/config/public')).json();
+    } catch (e) {
+      showToast('Could not load payment settings.');
+      proStatus.textContent = originalLabel;
+      return;
+    }
+
+    if (!config.paystack_public_key) {
+      showToast("Payments aren't configured yet.");
+      proStatus.textContent = originalLabel;
+      return;
+    }
+
+    if (typeof PaystackPop === 'undefined') {
+      showToast('Payment library failed to load — check your connection and try again.');
+      proStatus.textContent = originalLabel;
+      return;
+    }
+
+    const token = localStorage.getItem('kairos_token') || '';
+    const amountNgn = plan === 'organisation' ? config.org_price_ngn : config.pro_price_ngn;
+
+    const handler = PaystackPop.setup({
+      key: config.paystack_public_key,
+      email: currentUser.email,
+      amount: amountNgn * 100,
+      currency: 'NGN',
+      callback: function (response) {
+        proStatus.textContent = 'VERIFYING...';
+        fetch('/api/payment/paystack/verify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+          body: JSON.stringify({ reference: response.reference, plan })
+        })
+          .then(r => r.json())
+          .then(data => {
+            if (data.ok) {
+              localStorage.setItem('kairos_plan', data.plan);
+              showToast('🎉 Upgraded to Pro!');
+              loadProfile();
+            } else {
+              showToast(data.error || 'Payment verification failed.');
+              proStatus.textContent = originalLabel;
+            }
+          })
+          .catch(() => {
+            showToast('Payment made but verification failed — contact support.');
+            proStatus.textContent = originalLabel;
+          });
+      },
+      onClose: function () {
+        // User cancelled — restore the button, no changes made.
+        proStatus.textContent = originalLabel;
+      }
+    });
+    handler.openIframe();
+  }
+
+  // Load Paystack's inline checkout script (only needed if they click Upgrade)
+  (function loadPaystackScript() {
+    const s = document.createElement('script');
+    s.src = 'https://js.paystack.co/v1/inline.js';
+    document.head.appendChild(s);
+  })();
+
+  function goBack() {
+    if (window.parent !== window && new URLSearchParams(location.search).get('embedded') === '1') {
+      window.parent.postMessage('kairos:close-settings', location.origin);
+      return;
+    }
+    // Standalone settings: Back always returns to the app.
+    // (Deliberately NOT history.back(): after visiting a legal page the previous
+    //  history entry is that page, so history.back() ping-pongs settings <-> legal.)
+    window.location.href = '/app?skip_intro=1';
+  }
+
+  function showToast(msg) {
+    const t = document.getElementById('toast');
+    t.textContent = msg; t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 3000);
+  }
+
+  document.addEventListener('DOMContentLoaded', loadProfile);
+
+  // ════════════════════════════════════════
+  //  VOICE & DISPLAY — shares kairos_settings
+  //  localStorage key with Setings.js so
+  //  changes here apply live in the app.
+  // ════════════════════════════════════════
+  const VS_KEY = 'kairos_settings';
+  const VS_DEFAULTS = {
+    theme: 'cyan', voiceName: '', voiceRate: 1.05, voicePitch: 0.85,
+    orbStandbyColor: '#00d4ff', orbListenColor: '#00ff8c', orbThinkColor: '#ffb300',
+    orbSpeakColor: '#ffffff', orbErrorColor: '#ff4444', ringColor: '#00d4ff',
+  };
+  const VS_THEMES = {
+    cyan:   { label: 'CYAN',   color: '#00d4ff' },
+    amber:  { label: 'AMBER',  color: '#ffb300' },
+    green:  { label: 'GREEN',  color: '#00ff8c' },
+    purple: { label: 'PURPLE', color: '#c084fc' },
+    red:    { label: 'RED',    color: '#ff4444' },
+  };
+  let vs = Object.assign({}, VS_DEFAULTS);
+  try { vs = Object.assign({}, VS_DEFAULTS, JSON.parse(localStorage.getItem(VS_KEY) || '{}')); } catch (e) {}
+  function vsSave() { try { localStorage.setItem(VS_KEY, JSON.stringify(vs)); } catch (e) {} }
+
+  function renderThemeRow() {
+    const row = document.getElementById('themeRow');
+    row.innerHTML = '';
+    Object.entries(VS_THEMES).forEach(([key, t]) => {
+      const b = document.createElement('button');
+      b.className = 'btn';
+      b.textContent = t.label;
+      b.style.borderColor = vs.theme === key ? t.color : 'rgba(255,255,255,0.15)';
+      b.style.color = vs.theme === key ? t.color : 'rgba(255,255,255,0.5)';
+      b.onclick = () => { vs.theme = key; vsSave(); renderThemeRow(); };
+      row.appendChild(b);
+    });
+  }
+
+  function populateVoices() {
+    const sel = document.getElementById('voiceSelect');
+    const voices = (window.speechSynthesis && window.speechSynthesis.getVoices()) || [];
+    if (!voices.length) return;
+    sel.innerHTML = '';
+    voices.filter(v => v.lang.startsWith('en')).forEach(v => {
+      const opt = document.createElement('option');
+      opt.value = v.name; opt.textContent = v.name;
+      if (v.name === vs.voiceName) opt.selected = true;
+      sel.appendChild(opt);
+    });
+    sel.onchange = () => { vs.voiceName = sel.value; vsSave(); };
+  }
+  if (window.speechSynthesis) {
+    populateVoices();
+    window.speechSynthesis.onvoiceschanged = populateVoices;
+  }
+
+  function initSliders() {
+    const speedEl = document.getElementById('speedSlider');
+    const pitchEl = document.getElementById('pitchSlider');
+    speedEl.value = vs.voiceRate; document.getElementById('speedVal').textContent = vs.voiceRate.toFixed(2) + 'x';
+    pitchEl.value = vs.voicePitch; document.getElementById('pitchVal').textContent = vs.voicePitch.toFixed(2);
+    speedEl.oninput = () => { vs.voiceRate = parseFloat(speedEl.value); document.getElementById('speedVal').textContent = vs.voiceRate.toFixed(2) + 'x'; vsSave(); };
+    pitchEl.oninput = () => { vs.voicePitch = parseFloat(pitchEl.value); document.getElementById('pitchVal').textContent = vs.voicePitch.toFixed(2); vsSave(); };
+  }
+
+  function initRingColor() {
+    const input = document.getElementById('ringColorInput');
+    input.value = vs.ringColor;
+    input.oninput = () => { vs.ringColor = input.value; vsSave(); };
+  }
+
+  function initOrbColors() {
+    const row = document.getElementById('orbColorRow');
+    if (!row) return;
+    const states = [
+      ['Standby', 'orbStandbyColor'],
+      ['Listening', 'orbListenColor'],
+      ['Thinking', 'orbThinkColor'],
+      ['Responding', 'orbSpeakColor'],
+      ['Error', 'orbErrorColor'],
+    ];
+    row.innerHTML = '';
+    states.forEach(([label, key]) => {
+      const wrap = document.createElement('label');
+      wrap.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:.4rem;font-size:.62rem;color:rgba(255,255,255,.62);';
+      const text = document.createElement('span');
+      text.textContent = label;
+      const input = document.createElement('input');
+      input.type = 'color';
+      input.value = vs[key];
+      input.style.cssText = 'width:38px;height:30px;background:none;border:1px solid var(--cyan-dim);cursor:pointer;';
+      input.oninput = () => { vs[key] = input.value; vsSave(); };
+      wrap.append(text, input);
+      row.appendChild(wrap);
+    });
+  }
+
+  function testVoice() {
+    if (!window.speechSynthesis) return;
+    window.speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance("Systems online. How may I assist you today?");
+    u.rate = vs.voiceRate; u.pitch = vs.voicePitch;
+    const voices = window.speechSynthesis.getVoices();
+    const match = voices.find(v => v.name === vs.voiceName);
+    if (match) u.voice = match;
+    window.speechSynthesis.speak(u);
+  }
+
+  function resetVoiceSettings() {
+    vs = Object.assign({}, VS_DEFAULTS);
+    vsSave();
+    renderThemeRow();
+    initSliders();
+    initRingColor();
+    initOrbColors();
+    populateVoices();
+    showToast('Voice & display settings reset');
+  }
+
+  renderThemeRow();
+  initSliders();
+  initRingColor();
+  initOrbColors();
+</script>
+
+<script>
+  // ─────────────────────────────────────────────
+  //  PRESENTATIONAL LAYER (B2) — tab switching and
+  //  slider accent-fill only. Adds no data, touches
+  //  no existing handler, reads no new state.
+  // ─────────────────────────────────────────────
+  (function () {
+    const TITLES = {
+      account:    ['Account',    'Your profile, usage and account status.'],
+      voice:      ['Voice',      'Tune how KAIROS speaks back to you.'],
+      appearance: ['Appearance', 'Theme, ring and orb state colors.'],
+      plan:       ['Plan',       'Your subscription and referral rewards.'],
+      privacy:    ['Privacy',    'Legal documents, support and session.'],
+    };
+    window.showSettingsTab = function (name) {
+      document.querySelectorAll('.set-tab').forEach(t => {
+        t.hidden = t.getAttribute('data-panel') !== name;
+      });
+      document.querySelectorAll('.set-nav__item').forEach(b => {
+        b.classList.toggle('active', b.getAttribute('data-tab') === name);
+      });
+      const meta = TITLES[name];
+      if (meta) {
+        const t = document.getElementById('paneTitle');
+        const s = document.getElementById('paneSub');
+        if (t) t.textContent = meta[0];
+        if (s) s.textContent = meta[1];
+      }
+      try { window.scrollTo({ top: 0, behavior: 'smooth' }); } catch (e) { window.scrollTo(0, 0); }
+    };
+
+    // Accent fill for the WebKit range track (Firefox fills natively).
+    function paintRange(el) {
+      const min = parseFloat(el.min) || 0, max = parseFloat(el.max) || 100;
+      const v = parseFloat(el.value);
+      const pct = max > min ? ((v - min) / (max - min)) * 100 : 50;
+      el.style.setProperty('--fill', pct + '%');
+    }
+    const RANGES = ['speedSlider', 'pitchSlider'];
+    function repaintRanges() {
+      RANGES.forEach(id => { const el = document.getElementById(id); if (el) paintRange(el); });
+    }
+    RANGES.forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.addEventListener('input', () => paintRange(el));
+    });
+    // RESET TO DEFAULT re-writes slider values via the existing handler but
+    // dispatches no input event — repaint on the next tick so the fill follows.
+    document.querySelectorAll('[onclick="resetVoiceSettings()"]').forEach(b => {
+      b.addEventListener('click', () => setTimeout(repaintRanges, 0));
+    });
+    repaintRanges(); // existing initSliders() has already set the values above
+  })();
+</script>
+</body>
+</html>

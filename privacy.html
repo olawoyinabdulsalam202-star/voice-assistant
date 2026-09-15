@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Privacy Policy — KAIROS</title>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;700;900&family=Rajdhani:wght@300;400;500;600&family=Share+Tech+Mono&display=swap"
+    rel="stylesheet">
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png">
+  <link rel="apple-touch-icon" href="/apple-touch-icon-180.png">
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#0D0F16">
+  <link rel="stylesheet" href="/design-tokens.css">
+  <link rel="stylesheet" href="/background.css">
+  <link rel="stylesheet" href="/components.css">
+  <style>
+    :root {
+      /* retokenized onto the design system (design-tokens.css) */
+      --cyan: var(--accent-end);
+      --purple: var(--accent-start);
+      --green: var(--ok-color);
+      --gold: var(--warn-color);
+      --dark: transparent;
+      --card: var(--glass-fill);
+      --border: var(--glass-border);
+      --text: var(--text-primary);
+      --muted: var(--text-secondary);
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box }
+
+    body {
+      font-family: var(--font-ui);
+      background: var(--dark);
+      color: var(--text);
+      line-height: 1.75;
+    }
+
+    /* page-specific hued wash neutralized — the shared .kx-bg is the only atmosphere */
+    .bg-fade {
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+      background: none;
+      pointer-events: none;
+    }
+
+    nav {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: rgba(13, 15, 22, 0.72);
+      -webkit-backdrop-filter: blur(var(--glass-blur-sm)) saturate(140%);
+      backdrop-filter: blur(var(--glass-blur-sm)) saturate(140%);
+      border-bottom: 1px solid var(--border);
+      padding: 1.1rem 2rem;
+    }
+
+    .nav-inner {
+      max-width: 900px;
+      margin: 0 auto;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .nav-logo {
+      font-family: var(--font-display);
+      font-size: .95rem;
+      font-weight: 900;
+      letter-spacing: .28rem;
+      color: var(--text-primary);
+      text-decoration: none;
+    }
+
+    .nav-back {
+      font-family: var(--font-mono);
+      font-size: .68rem;
+      letter-spacing: .12rem;
+      color: var(--muted);
+      text-decoration: none;
+      border: 1px solid var(--border);
+      border-radius: var(--glass-radius-pill);
+      padding: .45rem 1.1rem;
+      transition: color var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out);
+    }
+
+    .nav-back:hover {
+      color: var(--text-primary);
+      border-color: var(--glass-highlight);
+    }
+
+    main {
+      position: relative;
+      z-index: 2;
+      max-width: 820px;
+      width: calc(100% - 2.4rem);
+      margin: 3rem auto 5rem;
+      padding: 3.5rem clamp(1.4rem, 4vw, 3rem) 4rem;
+      background: var(--glass-fill);
+      border: 1px solid var(--glass-border);
+      border-radius: var(--glass-radius-lg);
+      -webkit-backdrop-filter: blur(var(--glass-blur-sm)) saturate(140%);
+      backdrop-filter: blur(var(--glass-blur-sm)) saturate(140%);
+      box-shadow: var(--shadow-card), inset 0 1px 0 var(--glass-highlight);
+    }
+
+    .doc-tag {
+      font-family: var(--font-mono);
+      font-size: .6rem;
+      color: var(--cyan);
+      letter-spacing: .4rem;
+      text-transform: uppercase;
+      display: block;
+      margin-bottom: 1rem;
+    }
+
+    h1 {
+      font-family: var(--font-display);
+      font-size: clamp(1.8rem, 4vw, 2.6rem);
+      font-weight: 700;
+      letter-spacing: .05rem;
+      background: var(--accent-gradient);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      color: transparent;
+      margin-bottom: .6rem;
+    }
+
+    .updated {
+      font-family: var(--font-mono);
+      font-size: .68rem;
+      color: var(--muted);
+      letter-spacing: .1rem;
+      margin-bottom: 3rem;
+    }
+
+    h2 {
+      font-family: var(--font-display);
+      font-size: 1.05rem;
+      font-weight: 600;
+      letter-spacing: .04rem;
+      color: var(--text-primary);
+      margin: 3rem 0 1rem;
+      padding-bottom: .7rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    h2 .num {
+      color: var(--cyan);
+      font-size: .85rem;
+      margin-right: .6rem;
+    }
+
+    p {
+      font-size: 1rem;
+      color: var(--text);
+      margin-bottom: 1rem;
+    }
+
+    ul {
+      margin: 0 0 1rem 1.4rem;
+      color: var(--text);
+    }
+
+    li {
+      margin-bottom: .5rem;
+    }
+
+    strong {
+      color: var(--text-primary);
+      font-weight: 600;
+    }
+
+    a.inline {
+      color: var(--cyan);
+      text-decoration: none;
+      border-bottom: 1px dotted rgba(var(--accent-end-rgb), .4);
+    }
+
+    .callout {
+      background: var(--glass-fill-strong);
+      border: 1px solid var(--border);
+      border-left: 2px solid var(--cyan);
+      border-radius: var(--glass-radius-sm);
+      padding: 1.2rem 1.5rem;
+      margin: 1.5rem 0;
+      font-size: .92rem;
+      color: var(--muted);
+    }
+
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 2.5rem 2rem;
+      text-align: center;
+      position: relative;
+      z-index: 2;
+    }
+
+    .foot-copy {
+      font-family: var(--font-mono);
+      color: var(--muted);
+      font-size: .62rem;
+      letter-spacing: .1rem;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="kx-bg" aria-hidden="true"></div>
+  <div class="bg-fade"></div>
+
+  <nav>
+    <div class="nav-inner">
+      <a href="main.htm?skip_intro=1" class="nav-logo">KAIROS</a>
+      <a href="main.htm?skip_intro=1" class="nav-back">← Back to Home</a>
+    </div>
+  </nav>
+
+  <main>
+    <span class="doc-tag">// legal</span>
+    <h1>Privacy Policy</h1>
+    <p class="updated">Last updated: August 15, 2026</p>
+
+    <p>This Privacy Policy explains how KAIROS ("the Service," "we," "our") — an AI voice assistant developed by Elite Dev, Lagos, Nigeria — handles information when you use it. KAIROS uses both your device and our hosted services.</p>
+
+    <h2><span class="num">01</span>Information We Process</h2>
+    <p>Depending on which features you use, KAIROS may process the following:</p>
+    <ul>
+      <li><strong>Voice input</strong> — audio you speak to the system for transcription and response generation.</li>
+      <li><strong>Camera images</strong> — frames captured when you use the Camera Vision feature to ask about something you show the system.</li>
+      <li><strong>Screen content</strong> — screenshots or screen streams shared during Screen Sharing sessions.</li>
+      <li><strong>Text input</strong> — messages typed while using Text Mode.</li>
+      <li><strong>Conversation context</strong> — recent exchanges kept in short-term memory to support coherent follow-ups.</li>
+      <li><strong>Reminder data</strong> — any reminders or scheduled alerts you create.</li>
+      <li><strong>Location data</strong> — approximate location, only when you request weather information.</li>
+      <li><strong>Account and usage data</strong> — your name, email address, subscription status, feature usage, and security events.</li>
+    </ul>
+
+    <h2><span class="num">02</span>How We Use This Information</h2>
+    <p>Information you provide is used solely to operate the features you invoke — generating spoken or written responses, interpreting what the camera or screen shows, setting reminders, or retrieving weather data. KAIROS does not use your data for advertising, profiling, or resale to third parties.</p>
+
+    <h2><span class="num">03</span>Storage and Retention</h2>
+    <div class="callout">KAIROS stores account details, conversations, memories, reminders, subscription records, and usage counters on our hosted database so your account can work across sessions.</div>
+    <p>Some preferences and authentication details are also stored in your browser. We retain information while your account is active and as needed for security, payment records, legal obligations, and dispute resolution. You may request account deletion through the contact link.</p>
+
+    <h2><span class="num">04</span>Third-Party Services</h2>
+    <p>To generate responses, analyze images, deliver email, process payments, or fetch weather data, KAIROS sends relevant information to service providers such as AI model providers, Brevo, Paystack, and weather services. These providers process data under their own privacy terms. KAIROS uses server-managed service credentials; users are not asked to provide personal AI API keys.</p>
+
+    <h2><span class="num">05</span>Camera and Screen Data</h2>
+    <p>Images and screen content are only captured when you actively enable Camera Vision or Screen Sharing. This data is transmitted to the configured AI provider for analysis and is not separately stored or archived by KAIROS beyond the active session, unless you have configured your own logging.</p>
+
+    <h2><span class="num">06</span>Children's Privacy</h2>
+    <p>KAIROS is not directed at children under 13, and we do not knowingly collect information from children in that age group.</p>
+
+    <h2><span class="num">07</span>Your Choices</h2>
+    <ul>
+      <li>You can disable the camera, screen sharing, or reminders at any time.</li>
+      <li>You can manage stored memories and conversations from the Service.</li>
+      <li>You can request access, correction, export, or deletion of your account data through the contact link.</li>
+    </ul>
+
+    <h2><span class="num">08</span>Changes to This Policy</h2>
+    <p>We may update this Privacy Policy as KAIROS evolves. Material changes will be reflected by updating the "Last updated" date above.</p>
+
+    <h2><span class="num">09</span>Contact</h2>
+    <p>Questions about this policy can be directed to Elite Dev, Lagos, Nigeria, via the contact link on the KAIROS homepage.</p>
+  </main>
+
+  <footer>
+    <p class="foot-copy">© 2026 Elite Dev — Mr. Abdulsalam</p>
+  </footer>
+
+  <script>
+    /* If the reader arrived here from Settings, the Back control returns to
+       Settings (where they clicked) instead of the landing page. Detected via
+       the same-origin referrer — Settings loads at /settings. Every other
+       entry point keeps the original "Back to Home" link untouched. */
+    (function () {
+      try {
+        var ref = document.referrer;
+        if (!ref) return;
+        var u = new URL(ref);
+        if (u.origin !== location.origin) return;
+        if (!/(^|\/)settings\b/i.test(u.pathname)) return;
+        var back = document.querySelector('a.nav-back');
+        if (!back) return;
+        back.setAttribute('href', '/settings');
+        back.textContent = '← Back to Settings';
+      } catch (e) { /* keep the default Home link */ }
+    })();
+  </script>
+</body>
+
+</html>
