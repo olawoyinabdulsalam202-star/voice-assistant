@@ -43,6 +43,7 @@ function setOrb(state) {
       const user = await r.json();
       window.KAIROS_IS_PRO = !!user.is_pro;
       window.KAIROS_PROFILE = user;
+      window.KAIROS_PROFILE_AT = Date.now();
     }
   } catch (e) { /* leave undefined — gated actions will check when clicked */ }
 })();
@@ -277,6 +278,25 @@ function kairosSpeechLang() {
   return navigator.language || 'en-US';
 }
 
+function normalizedSimilarity(a, b) {
+  const x = String(a || '').toLowerCase().replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
+  const y = String(b || '').toLowerCase().replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
+  if (!x || !y) return 0;
+  const longer = x.length >= y.length ? x : y;
+  const shorter = x.length >= y.length ? y : x;
+  const distance = Array.from({ length: shorter.length + 1 }, (_, i) => i);
+  for (let i = 1; i <= longer.length; i++) {
+    let previous = distance[0]; distance[0] = i;
+    for (let j = 1; j <= shorter.length; j++) {
+      const current = distance[j];
+      distance[j] = longer[i - 1] === shorter[j - 1]
+        ? previous : 1 + Math.min(previous, distance[j - 1], current);
+      previous = current;
+    }
+  }
+  return 1 - distance[shorter.length] / longer.length;
+}
+
 function stopSpeechInterruptListener() {
   if (!speechInterruptRec) return;
   try { speechInterruptRec.onend = null; speechInterruptRec.onerror = null; speechInterruptRec.onresult = null; speechInterruptRec.abort(); } catch (e) { }
@@ -297,15 +317,17 @@ function startSpeechInterruptListener() {
     if (!isSpeaking || Date.now() < speechEchoGuardUntil) return;
     let interim = '';
     for (let i = e.resultIndex; i < e.results.length; i++) {
-      const value = e.results[i][0].transcript.trim();
+      const result = e.results[i][0];
+      const value = result.transcript.trim();
+      if (result.confidence && result.confidence < 0.45) continue;
       if (e.results[i].isFinal) speechInterruptText += `${value} `;
       else interim += value;
     }
     const candidate = `${speechInterruptText} ${interim}`.trim();
-    if (candidate.length < 2) return;
+    if (candidate.length < 4) return;
     const normalized = candidate.toLowerCase().replace(/\s+/g, ' ');
     const ownReply = (lastSpokenReply || '').toLowerCase().replace(/\s+/g, ' ');
-    if (ownReply && (ownReply.includes(normalized) || normalized.includes(ownReply))) return;
+    if (ownReply && (ownReply.includes(normalized) || normalized.includes(ownReply) || normalizedSimilarity(normalized, ownReply) >= 0.72)) return;
     stopSpeechInterruptListener();
     stopKairos();
     isProcessing = false;
@@ -856,12 +878,9 @@ function activateKairos() {
   setOrb('listening');                                    // ← ORB: listening
   statusEl.textContent = '▶ LISTENING...';
   greetingEl.textContent = '';
-  speak(
-    (window.KAIROS_UI && window.KAIROS_UI.activation_reply) || "Yes, how can I help?",
-    // Give the browser audio output time to drain before opening the mic.
-    // Without this gap Chrome can feed the activation phrase back as input.
-    () => { setTimeout(startMainListener, 1000); }
-  );
+  // Open the listener immediately after the wake word. Speaking an activation
+  // acknowledgement here adds latency and can be fed straight back by the mic.
+  startMainListener();
 }
 
 // ════════════════════════════════════════
@@ -888,7 +907,7 @@ function startMainListener() {
     mainRec.continuous = true; mainRec.interimResults = true; mainRec.maxAlternatives = 3;
 
     let silenceTimer = null, finalText = '', interimText = '';
-    const SILENCE_MS = 1400;
+    const SILENCE_MS = 850;
 
     mainRec.onstart = () => {
       mainRecActive = true;
@@ -909,7 +928,8 @@ function startMainListener() {
 
       // ignore Kairos hearing its own voice
       const normalized = display.toLowerCase();
-      if (normalized.length > 1 && lastSpokenReply.includes(normalized) && normalized.length < 40) {
+      if (normalized.length > 1 && normalized.length < 80 &&
+          (lastSpokenReply.includes(normalized) || normalizedSimilarity(normalized, lastSpokenReply) >= 0.72)) {
         return;
       }
 
@@ -1090,7 +1110,7 @@ function resumeAfterReply(reply) {
     statusEl.textContent = '▶ ACTIVE — SPEAK ANYTIME';
     setOrb('listening');                                  // ← ORB: back to listening
     sleepTimer = setTimeout(() => { if (!isProcessing) sleepKairos(); }, ACTIVE_TIMEOUT_MS);
-    setTimeout(() => { if (isAwake && !isProcessing) startMainListener(); }, 1200);
+    setTimeout(() => { if (isAwake && !isProcessing) startMainListener(); }, 500);
   });
 }
 
@@ -1403,6 +1423,10 @@ function closeCamera() {
 }
 
 async function checkProFeature(feature) {
+  const cached = window.KAIROS_PROFILE;
+  if (cached && (Date.now() - (window.KAIROS_PROFILE_AT || 0) < 60000)) {
+    return evaluateFeatureAccess(feature, cached);
+  }
   try {
     const token = localStorage.getItem('kairos_token') || '';
     const r = await fetch('/api/user/me', { headers: { 'Authorization': `Bearer ${token}` } });
@@ -1413,6 +1437,12 @@ async function checkProFeature(feature) {
     const user = await r.json();
     window.KAIROS_IS_PRO = !!user.is_pro;
     window.KAIROS_PROFILE = user;
+    window.KAIROS_PROFILE_AT = Date.now();
+    return evaluateFeatureAccess(feature, user);
+  } catch { return false; }
+}
+
+function evaluateFeatureAccess(feature, user) {
     if (user.is_pro) return true;
     const usage = user.feature_usage_today || {};
     const limits = user.feature_limits || {};
@@ -1429,7 +1459,6 @@ async function checkProFeature(feature) {
     speak(msg);
     showNotification(msg);
     return false;
-  } catch { return false; }
 }
 window.checkProFeature = checkProFeature;
 window.showNotification = showNotification;

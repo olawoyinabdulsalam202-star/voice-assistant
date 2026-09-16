@@ -646,6 +646,7 @@ def _email_shell(body_html):
 
 
 def send_welcome_email(to_email, name, verify_token=None):
+    name = html.escape(str(name or ""), quote=True)
     whatsapp = "https://whatsapp.com/channel/0029Vb8KHvvH5JLqdS6ruD2s"
     verify_block = ""
     if verify_token:
@@ -889,6 +890,8 @@ def login():
 
 @app.route("/api/auth/signup", methods=["POST"])
 def signup():
+    if is_rate_limited(f"signup:{client_ip()}"):
+        return jsonify({"error": "Too many signup attempts. Please try again later."}), 429
     data     = request.get_json(silent=True) or {}
     email    = str(data.get("email", "")).strip().lower()
     password = str(data.get("password", ""))
