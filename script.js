@@ -1,0 +1,1869 @@
+// Section.
+
+// Section.
+function setOrb(state) {
+  if (typeof window.setOrbState === 'function') {
+    window.setOrbState(state);
+  } else {
+    // Fallback: legacy class toggle while settings.js loads
+    const o = document.getElementById('orb');
+    if (!o) return;
+    o.classList.remove('orb-standby','orb-listening','orb-thinking','orb-speaking','orb-error','listening');
+    if (state === 'listening') o.classList.add('listening');
+  }
+}
+
+// Section.
+
+// Section.
+let planRefreshPromise = null;
+function refreshPlanStatus() {
+  if (planRefreshPromise) return planRefreshPromise;
+  const token = localStorage.getItem('kairos_token') || '';
+  if (!token) return Promise.resolve(null);
+  planRefreshPromise = fetch('/api/user/me', {
+    headers: { 'Authorization': `Bearer ${token}` },
+    cache: 'no-store',
+  })
+    .then(async response => {
+      if (response.status === 401) {
+        window.KAIROS_PROFILE = null;
+        return null;
+      }
+      if (!response.ok) return null;
+      const user = await response.json();
+      window.KAIROS_IS_PRO = !!user.is_pro;
+      window.KAIROS_PROFILE = user;
+      window.KAIROS_PROFILE_AT = Date.now();
+      return user;
+    })
+    .catch(() => null)
+    .finally(() => { planRefreshPromise = null; });
+  return planRefreshPromise;
+}
+refreshPlanStatus();
+
+// Keep admin-edited free limits live in an already-open /app tab.
+const historyData = [];
+let currentConversationId = localStorage.getItem('kairos_conversation_id') || null;
+
+setInterval(async () => {
+  if (document.hidden) return;
+  try {
+    const response = await fetch('/api/config/public', { cache: 'no-store' });
+    if (response.ok) {
+      const config = await response.json();
+      window.KAIROS_LIMITS = config.limits || window.KAIROS_LIMITS || {};
+    }
+  } catch (e) { /* retain the last known limits while offline */ }
+}, 10000);
+
+(async function primeConversationHistory() {
+  const url = new URL(window.location.href);
+  const chatMatch = url.pathname.match(/^\/chat\/(\d+)$/);
+  if (chatMatch) {
+    currentConversationId = chatMatch[1];
+    localStorage.setItem('kairos_conversation_id', currentConversationId);
+    await loadCurrentConversation();
+  } else if (url.pathname === '/new' || url.searchParams.get('new') === '1') {
+    history.replaceState(null, '', '/new');
+    currentConversationId = null;
+    localStorage.removeItem('kairos_conversation_id');
+    historyData.length = 0;
+    renderHistory();
+  } else {
+    await loadCurrentConversation();
+  }
+})();
+
+// Section.
+function revealInterface(options) {
+  const immediate = options && options.immediate;
+  setTimeout(async () => {
+    document.getElementById('interface').classList.add('visible');
+    document.getElementById('strip').style.opacity = '1';
+    ['c1', 'c2', 'c3', 'c4'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.classList.add('show');
+    });
+
+    // Wait for server config so wake words / shortcuts / limits are in place before the listeners start (C2/C5/C6).
+    try { await window.KAIROS_CONFIG_READY; } catch (e) { }
+
+    setOrb('standby');
+    autoGreet();
+    startNotificationPolling();
+    applyMuteVisuals();
+
+    // M4: honour a mute saved from a previous session — do NOT open the mic just because the page reloaded.
+    if (!isMicMuted) {
+      startWakeWordListener();
+    }
+
+    startClock();
+    window.kairosReminders?.init();
+    await buildDeviceSelector();
+    autoConnectSavedDevices();
+  }, immediate ? 0 : 250);
+}
+
+let notificationPollTimer = null;
+let notificationQueue = [];
+let notificationBanner = null;
+const notificationSeen = new Set();
+
+function showNextNotification() {
+  if (notificationBanner || !notificationQueue.length) return;
+  const n = notificationQueue.shift();
+  const token = localStorage.getItem('kairos_token') || '';
+  const banner = document.createElement('div');
+  banner.className = 'kx-notice kx-notice--corner';
+
+  const title = document.createElement('b');
+  title.className = 'kx-notice__title';
+  title.textContent = String(n.subject || 'KAIROS');
+  const body = document.createElement('div');
+  body.className = 'kx-notice__body';
+  body.textContent = String(n.body || '');
+  body.style.whiteSpace = 'pre-wrap';
+  const close = document.createElement('button');
+  close.type = 'button';
+  close.className = 'glass-btn glass-btn--sm glass-btn--outline kx-notice__close-btn';
+  close.setAttribute('aria-label', 'Close notification');
+  close.textContent = 'CLOSE';
+  banner.append(title, body, close);
+  notificationBanner = banner;
+
+  close.onclick = () => {
+    banner.remove();
+    notificationBanner = null;
+    fetch(`/api/notifications/${encodeURIComponent(n.id)}/read`, {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${token}` },
+    }).catch(() => {
+      // Let a later poll show it again if the acknowledgement did not reach the server.
+      notificationSeen.delete(String(n.id));
+    });
+    setTimeout(showNextNotification, 150);
+  };
+  document.body.appendChild(banner);
+}
+
+async function loadUserNotifications() {
+  const token = localStorage.getItem('kairos_token') || '';
+  if (!token) return;
+  try {
+    const r = await fetch('/api/notifications', {
+      headers: { Authorization: `Bearer ${token}` },
+      cache: 'no-store',
+    });
+    if (!r.ok) return;
+    const data = await r.json();
+    const fresh = (data.notifications || [])
+      .filter(n => n && n.id != null && !notificationSeen.has(String(n.id)))
+      .reverse();
+    fresh.forEach(n => notificationSeen.add(String(n.id)));
+    notificationQueue.push(...fresh);
+    showNextNotification();
+  } catch (e) { /* notifications are supplementary and must never block the app */ }
+}
+
+function startNotificationPolling() {
+  loadUserNotifications();
+  if (notificationPollTimer) return;
+  notificationPollTimer = setInterval(() => {
+    if (!document.hidden) loadUserNotifications();
+  }, 30000);
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) loadUserNotifications();
+  }, { passive: true });
+}
+
+// Section.
+revealInterface({ immediate: true });
+
+// Section.
+const greetingEl = document.getElementById('greeting');
+const statusEl = document.getElementById('status');
+const orb = document.getElementById('orb');
+
+// Section.
+function autoGreet() {
+  const h = new Date().getHours();
+  const t = h < 12 ? 'morning' : h < 17 ? 'afternoon' : 'evening';
+  const uname = (window.getKairosName && window.getKairosName()) || "friend";
+  const msg = `Good ${t}, ${uname}. Say "Hey Kairos" to activate me.`;
+  // Keep the standby greeting visual only; speech begins after activation.
+  greetingEl.textContent = msg;
+  statusEl.textContent = '▶ STANDBY — SAY "HEY KAIROS"';
+}
+
+// Section.
+function sanitizeInput(text) {
+  if (!text || typeof text !== 'string') return '';
+  return text.slice(0, 1000).replace(/[<>]/g, '').trim();
+}
+
+// Section.
+function cleanForSpeech(text) {
+  return text
+    .replace(/```[\s\S]*?```/g, 'Here is the code.')
+    .replace(/`[^`]*`/g, match => match.replace(/`/g, ''))
+    .replace(/\*\*([^*]+)\*\*/g, '$1')
+    .replace(/\*([^*]+)\*/g, '$1')
+    .replace(/#{1,6}\s/g, '')
+    .replace(/>\s/g, '')
+    .replace(/[-_]{2,}/g, '')
+    .replace(/\\\\/g, '')
+    .replace(/\\/g, '')
+    .replace(/\|/g, ', ')
+    .replace(/\n{2,}/g, '. ')
+    .replace(/\n/g, ' ')
+    .trim();
+}
+
+function hasCodeBlock(text) { return !!text && text.includes('```'); }
+
+function extractCodeBlocks(text) {
+  const blocks = [];
+  const regex = /```(\w*)\n?([\s\S]*?)```/g;
+  let match;
+  while ((match = regex.exec(text)) !== null) {
+    blocks.push({ lang: match[1] || 'code', code: match[2].trim() });
+  }
+  return blocks;
+}
+
+function escapeHtml(text) {
+  return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function showCodePanel(blocks) {
+  let panel = document.getElementById('code-panel');
+  if (!panel) {
+    panel = document.createElement('div');
+    panel.id = 'code-panel';
+    // Redesign: glass output panel (was a cyan #000514 monospace box). Kept as a display-toggle panel so t...
+    panel.className = 'kx-code-panel kx-scroll';
+    document.body.appendChild(panel);
+  }
+  panel.innerHTML = `
+    <div class="kx-code-panel__head">
+      <span class="kx-code-panel__title"><svg class="ic ic--sm" aria-hidden="true"><use href="/icons.svg#ic-code"/></svg> CODE OUTPUT</span>
+      <button class="kx-code-panel__btn" onclick="document.getElementById('code-panel').style.display='none'"><svg class="ic ic--sm" aria-hidden="true"><use href="/icons.svg#ic-x"/></svg> CLOSE</button>
+    </div>
+    ${blocks.map(b => `
+      <div class="kx-code-panel__block">
+        <div class="kx-code-panel__lang">
+          <span>${b.lang.toUpperCase() || 'CODE'}</span>
+          <button class="kx-code-panel__btn" onclick="navigator.clipboard.writeText(this.closest('div').nextElementSibling.textContent).then(()=>{this.textContent='✓ COPIED';setTimeout(()=>this.textContent='COPY',1500)})">COPY</button>
+        </div>
+        <pre class="kx-code-panel__pre">${escapeHtml(b.code)}</pre>
+      </div>
+    `).join('')}
+  `;
+  panel.style.display = 'block';
+  setTimeout(() => { if (panel) panel.style.display = 'none'; }, 60000);
+}
+
+// Section.
+let _voicesReady = false;
+let _voicesList = [];
+function loadVoices() {
+  if (!window.speechSynthesis) return;
+  _voicesList = window.speechSynthesis.getVoices();
+  if (_voicesList.length > 0) _voicesReady = true;
+}
+loadVoices();
+if (window.speechSynthesis) window.speechSynthesis.onvoiceschanged = loadVoices;
+
+function getBestVoice() {
+  const preferred = ['Google UK English Male', 'Microsoft Ryan Online (Natural) - English (United Kingdom)', 'Microsoft Guy Online (Natural) - English (United States)', 'Daniel', 'Arthur', 'Google US English', 'Alex'];
+  for (const name of preferred) {
+    const found = _voicesList.find(v => v.name.includes(name));
+    if (found) return found;
+  }
+  return _voicesList.find(v => /en/i.test(v.lang) && /male/i.test(v.name)) || null;
+}
+
+// Section.
+let typingInterval = null;
+let isSpeaking = false;
+let lastSpokenReply = '';
+let speechGeneration = 0;
+let speechEchoGuardUntil = 0;
+let speechInterruptRec = null;
+let speechInterruptText = '';
+let streamSpeechSession = null;
+
+// Section.
+function kairosSpeechLang() {
+  if (window.KAIROS_SPEECH_LANGUAGE) return window.KAIROS_SPEECH_LANGUAGE;
+  try {
+    const s = JSON.parse(localStorage.getItem('kairos_settings') || '{}');
+    if (s && s.speechLang) return s.speechLang;
+  } catch (e) { /* malformed or blocked settings — fall through to device/default */ }
+  return navigator.language || 'en-US';
+}
+
+function normalizedSimilarity(a, b) {
+  const x = String(a || '').toLowerCase().replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
+  const y = String(b || '').toLowerCase().replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
+  if (!x || !y) return 0;
+  const longer = x.length >= y.length ? x : y;
+  const shorter = x.length >= y.length ? y : x;
+  const distance = Array.from({ length: shorter.length + 1 }, (_, i) => i);
+  for (let i = 1; i <= longer.length; i++) {
+    let previous = distance[0]; distance[0] = i;
+    for (let j = 1; j <= shorter.length; j++) {
+      const current = distance[j];
+      distance[j] = longer[i - 1] === shorter[j - 1]
+        ? previous : 1 + Math.min(previous, distance[j - 1], current);
+      previous = current;
+    }
+  }
+  return 1 - distance[shorter.length] / longer.length;
+}
+
+function stopSpeechInterruptListener() {
+  if (!speechInterruptRec) return;
+  try { speechInterruptRec.onend = null; speechInterruptRec.onerror = null; speechInterruptRec.onresult = null; speechInterruptRec.abort(); } catch (e) { }
+  speechInterruptRec = null;
+  speechInterruptText = '';
+}
+
+function startSpeechInterruptListener() {
+  if (!isAwake || isMicMuted || !('webkitSpeechRecognition' in window || 'SpeechRecognition' in window)) return;
+  stopSpeechInterruptListener();
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  const rec = new SR();
+  speechInterruptRec = rec;
+  rec.continuous = true; rec.interimResults = true;
+  rec.lang = kairosSpeechLang();
+  speechInterruptText = '';
+  rec.onresult = (e) => {
+    if (!isSpeaking || Date.now() < speechEchoGuardUntil) return;
+    let interim = '';
+    for (let i = e.resultIndex; i < e.results.length; i++) {
+      const result = e.results[i][0];
+      const value = result.transcript.trim();
+      if (result.confidence && result.confidence < 0.45) continue;
+      if (e.results[i].isFinal) speechInterruptText += `${value} `;
+      else interim += value;
+    }
+    const candidate = `${speechInterruptText} ${interim}`.trim();
+    if (candidate.length < 4) return;
+    const normalized = candidate.toLowerCase().replace(/\s+/g, ' ');
+    const ownReply = (lastSpokenReply || '').toLowerCase().replace(/\s+/g, ' ');
+    if (ownReply && (ownReply.includes(normalized) || normalized.includes(ownReply) || normalizedSimilarity(normalized, ownReply) >= 0.72)) return;
+    stopSpeechInterruptListener();
+    stopKairos();
+    isProcessing = false;
+    speechEchoGuardUntil = Date.now() + 250;
+    processCommand(candidate);
+  };
+  rec.onerror = () => { if (speechInterruptRec === rec) stopSpeechInterruptListener(); };
+  rec.onend = () => { if (speechInterruptRec === rec) speechInterruptRec = null; };
+  try { rec.start(); } catch (e) { stopSpeechInterruptListener(); }
+}
+
+function pauseRecognitionForSpeech() {
+  if (!mainRec) return;
+  try {
+    mainRec.onend = null;
+    mainRec.onerror = null;
+    mainRec.onresult = null;
+    mainRec.abort();
+  } catch (e) { }
+  mainRec = null;
+  mainRecActive = false;
+}
+
+function speakAndType(el, text, onDone) {
+  const generation = ++speechGeneration;
+  pauseRecognitionForSpeech();
+  if (typingInterval) { clearInterval(typingInterval); typingInterval = null; }
+  const spokenText = cleanForSpeech(text);
+  const displayText = text.replace(/\*\*([^*]+)\*\*/g, '$1').replace(/\*([^*]+)\*/g, '$1').replace(/#{1,6}\s/g, '').replace(/`/g, '').trim();
+  // Text chat must remain usable where the Web Speech API is unavailable.
+  if (!window.speechSynthesis || typeof SpeechSynthesisUtterance === 'undefined') {
+    el.textContent = displayText;
+    if (onDone) onDone();
+    return;
+  }
+  window.speechSynthesis.cancel();
+  isSpeaking = false;
+  el.textContent = '';
+  let doneFired = false;
+  function fireDone() {
+    if (generation !== speechGeneration) return;
+    if (doneFired) return; doneFired = true;
+    isSpeaking = false; el.textContent = displayText;
+    speechEchoGuardUntil = Date.now() + 900;
+    if (typingInterval) { clearInterval(typingInterval); typingInterval = null; }
+    if (onDone) onDone();
+  }
+  function doSpeak() {
+    const u = new SpeechSynthesisUtterance(spokenText);
+    u.rate = 1.05; u.pitch = 0.85; u.volume = 1;
+    const voice = getBestVoice();
+    if (voice) u.voice = voice;
+    u.onstart = () => {
+      isSpeaking = true;
+      speechEchoGuardUntil = Date.now() + 900;
+      setTimeout(() => { if (isSpeaking && generation === speechGeneration) startSpeechInterruptListener(); }, 950);
+      if (typingInterval) clearInterval(typingInterval);
+      const wordCount = displayText.split(' ').length;
+      const speechMs = (wordCount / 2.4) * 1000 / u.rate;
+      const charDelay = Math.max(15, Math.min(50, speechMs / displayText.length));
+      let i = 0;
+      typingInterval = setInterval(() => {
+        if (i < displayText.length) { el.textContent += displayText[i++]; }
+        else { clearInterval(typingInterval); typingInterval = null; }
+      }, charDelay);
+    };
+    u.onend = fireDone; u.onerror = fireDone;
+    setTimeout(fireDone, Math.max(4000, (spokenText.split(' ').length / 2.4) * 1000 * (1 / u.rate) * 1.4));
+    window.speechSynthesis.speak(u);
+  }
+  if (_voicesReady) { doSpeak(); }
+  else { const ws = Date.now(); const vc = setInterval(() => { loadVoices(); if (_voicesReady || Date.now() - ws > 1500) { clearInterval(vc); doSpeak(); } }, 100); }
+}
+
+// Streamed text mode speech. Browser speech synthesis queues utterances, but feeding it one sentence a...
+function startStreamSpeech(onDone) {
+  if (!window.speechSynthesis || typeof SpeechSynthesisUtterance === 'undefined') {
+    return {
+      push() {},
+      finish() { if (typeof onDone === 'function') onDone(); },
+      cancel() {},
+    };
+  }
+  const generation = ++speechGeneration;
+  pauseRecognitionForSpeech();
+  window.speechSynthesis.cancel();
+  isSpeaking = false;
+
+  const state = {
+    generation,
+    pending: '',
+    queue: [],
+    ended: false,
+    speaking: false,
+    finished: false,
+    onDone,
+    timer: null,
+  };
+  streamSpeechSession = state;
+
+  function valid() {
+    return streamSpeechSession === state && speechGeneration === generation;
+  }
+
+  function finish() {
+    if (!valid() || state.finished || !state.ended || state.speaking || state.queue.length) return;
+    state.finished = true;
+    streamSpeechSession = null;
+    isSpeaking = false;
+    speechEchoGuardUntil = Date.now() + 900;
+    if (typeof state.onDone === 'function') state.onDone();
+  }
+
+  function pump() {
+    if (!valid() || state.speaking) return;
+    if (!state.queue.length) { finish(); return; }
+
+    const segment = cleanForSpeech(state.queue.shift());
+    if (!segment) { pump(); return; }
+    const utterance = new SpeechSynthesisUtterance(segment);
+    utterance.rate = 1.05;
+    utterance.pitch = 0.85;
+    utterance.volume = 1;
+    const voice = getBestVoice();
+    if (voice) utterance.voice = voice;
+    state.speaking = true;
+    let settled = false;
+    const settle = () => {
+      if (settled) return;
+      settled = true;
+      if (state.timer) { clearTimeout(state.timer); state.timer = null; }
+      if (!valid()) return;
+      state.speaking = false;
+      isSpeaking = false;
+      pump();
+    };
+    utterance.onstart = () => {
+      if (!valid()) return;
+      isSpeaking = true;
+      lastSpokenReply = `${lastSpokenReply} ${segment}`.trim().slice(-4000);
+      speechEchoGuardUntil = Date.now() + 900;
+      setTimeout(() => {
+        if (valid() && isSpeaking) startSpeechInterruptListener();
+      }, 950);
+    };
+    utterance.onend = settle;
+    utterance.onerror = settle;
+    state.timer = setTimeout(settle, Math.max(4000, (segment.split(/\s+/).length / 2.4) * 1000 * 1.5));
+    try { window.speechSynthesis.speak(utterance); }
+    catch (e) { settle(); }
+  }
+
+  function splitPending(flush = false) {
+    while (state.pending.trim()) {
+      const sentence = state.pending.match(/[.!?。！？](?:\s|$)/);
+      let cut = sentence ? sentence.index + sentence[0].length : 0;
+      if (!cut && state.pending.length >= 140) {
+        cut = state.pending.lastIndexOf(' ', 120);
+        if (cut < 40) cut = 140;
+      }
+      if (!cut && flush) cut = state.pending.length;
+      if (!cut) break;
+      const part = state.pending.slice(0, cut).trim();
+      state.pending = state.pending.slice(cut);
+      if (part) state.queue.push(part);
+    }
+    pump();
+  }
+
+  return {
+    push(chunk) {
+      if (!valid() || state.ended || !chunk) return;
+      state.pending += String(chunk);
+      splitPending(false);
+    },
+    finish() {
+      if (!valid()) return;
+      state.ended = true;
+      splitPending(true);
+      finish();
+    },
+    cancel() {
+      if (!valid()) return;
+      streamSpeechSession = null;
+      speechGeneration++;
+      if (state.timer) clearTimeout(state.timer);
+      state.queue.length = 0;
+      state.pending = '';
+      window.speechSynthesis.cancel();
+      stopSpeechInterruptListener();
+      isSpeaking = false;
+    },
+  };
+}
+
+function stopKairos() {
+  speechGeneration++;
+  streamSpeechSession = null;
+  stopSpeechInterruptListener();
+  if (window.speechSynthesis) window.speechSynthesis.cancel();
+  isSpeaking = false;
+  if (typingInterval) { clearInterval(typingInterval); typingInterval = null; }
+}
+
+function speak(text, onDone) {
+  if (!('speechSynthesis' in window)) { if (onDone) onDone(); return; }
+  const generation = ++speechGeneration;
+  pauseRecognitionForSpeech();
+  window.speechSynthesis.cancel();
+  isSpeaking = false;
+  let doneFired = false;
+  function fireDone() {
+    if (generation !== speechGeneration || doneFired) return;
+    doneFired = true;
+    isSpeaking = false;
+    speechEchoGuardUntil = Date.now() + 900;
+    if (onDone) onDone();
+    else if (isAwake && !isProcessing && !isMicMuted) setTimeout(startMainListener, 1000);
+  }
+  function doSpeak() {
+    const u = new SpeechSynthesisUtterance(cleanForSpeech(text));
+    u.rate = 1.05; u.pitch = 0.85; u.volume = 1;
+    const voice = getBestVoice();
+    if (voice) u.voice = voice;
+    u.onstart = () => {
+      isSpeaking = true;
+      speechEchoGuardUntil = Date.now() + 900;
+      setTimeout(() => { if (isSpeaking && generation === speechGeneration) startSpeechInterruptListener(); }, 950);
+    };
+    u.onend = fireDone; u.onerror = fireDone;
+    setTimeout(fireDone, 6000);
+    window.speechSynthesis.speak(u);
+  }
+  if (_voicesReady) { doSpeak(); }
+  else { const ws = Date.now(); const vc = setInterval(() => { loadVoices(); if (_voicesReady || Date.now() - ws > 1500) { clearInterval(vc); doSpeak(); } }, 100); }
+}
+
+// Stable voice controls shared by the web UI and future Android/desktop wrappers. Consumers can interr...
+window.kairosVoice = {
+  stop: stopKairos,
+  speak,
+  speakAndType,
+  startStreamSpeech,
+  isSpeaking: () => isSpeaking,
+  interrupt: () => {
+    interactionGeneration++;
+    stopKairos();
+    isProcessing = false;
+    mainRecActive = false;
+    statusEl.textContent = '▶ ACTIVE — SAY SOMETHING ELSE';
+    setOrb('listening');
+    if (isAwake) setTimeout(startMainListener, 350);
+  }
+};
+
+document.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape' && isSpeaking) window.kairosVoice.interrupt();
+});
+
+// Section.
+const DEV_KEYWORDS = ['who made you', 'who built you', 'who developed you', 'who created you', 'who is your developer', 'who designed you', 'who programmed you', 'who are you built by', 'your creator', 'your developer', 'who owns you', 'who is your owner', 'who is your maker', 'who is your founder'];
+const DEV_RESPONSE = `I was built by Mr Abdulsalam — a web developer and AI developer based in Lagos, Nigeria, operating under the brand Elite Dev. He specialises in premium frontend and backend experiences, AI-powered interfaces, and JavaScript and Python development.`;
+function checkDevQuestion(text) { return DEV_KEYWORDS.some(kw => text.toLowerCase().includes(kw)); }
+
+// Section.
+function checkVoiceCommand(text) {
+  const lower = text.toLowerCase();
+  if (['enough', 'that is enough', "that's enough", 'stop talking', 'be quiet',
+       'let us move on', "let's move on", 'move on'].some(p => lower.includes(p))) return 'INTERRUPT';
+  const fileReply = window.kairosFiles?.handleVoice(text);
+  if (fileReply) { speak(fileReply); return 'FILE_HANDLED'; }
+  if (['turn on camera', 'open camera', 'activate camera', 'enable camera', 'start camera', 'show camera', 'camera on'].some(p => lower.includes(p))) return 'CAMERA_ON';
+  if (['turn off camera', 'close camera', 'disable camera', 'stop camera', 'camera off'].some(p => lower.includes(p))) return 'CAMERA_OFF';
+  if (['share my screen', 'share screen', 'start screen share', 'screen sharing', 'show my screen'].some(p => lower.includes(p))) return 'SCREEN_ON';
+  if (['stop sharing', 'stop screen share', 'close screen', 'end screen share'].some(p => lower.includes(p))) return 'SCREEN_OFF';
+  if (['open history', 'show history', 'show log', 'open log', 'conversation log', 'show conversation'].some(p => lower.includes(p))) return 'HISTORY_OPEN';
+  if (['close history', 'hide history', 'close log'].some(p => lower.includes(p))) return 'HISTORY_CLOSE';
+  if (['show devices', 'open devices', 'device settings', 'change microphone', 'change camera', 'switch mic', 'switch camera'].some(p => lower.includes(p))) return 'DEVICES_OPEN';
+  if (['go to sleep', 'sleep', 'goodbye kairos', 'goodbye', 'good night kairos', 'good night k', 'kairos sleep', 'standby'].some(p => lower.includes(p))) return 'SLEEP';
+  return null;
+}
+
+async function handleVoiceCommand(cmd) {
+  switch (cmd) {
+    case 'INTERRUPT':
+      window.kairosVoice.interrupt();
+      return true;
+    case 'CAMERA_ON':
+      if (!cameraStream) {
+        const ok = await openCamera(selectedCamId);
+        speak(ok ? `Camera activated, ${(window.getKairosName && window.getKairosName()) || "friend"}.` : "I couldn't access the camera.");
+      } else { speak("Camera is already on."); }
+      return true;
+    case 'CAMERA_OFF':
+      closeCamera(); speak("Camera deactivated."); return true;
+    case 'SCREEN_ON':
+      if (!screenStream) {
+        speak("Opening screen share now.", async () => {
+          const ok = await startScreenShare();
+          if (!ok) speak("Screen sharing was cancelled.");
+        });
+      } else { speak("Screen is already being shared."); }
+      return true;
+    case 'SCREEN_OFF':
+      stopScreenShare(); speak("Screen sharing stopped."); return true;
+    case 'HISTORY_OPEN':
+      toggleHistory(); speak("Conversation log opened."); return true;
+    case 'HISTORY_CLOSE':
+      toggleHistory(); speak("Conversation log closed."); return true;
+    case 'DEVICES_OPEN':
+      toggleDevicePanel(); speak("Device settings opened."); return true;
+    case 'SLEEP':
+      speak("Going to standby. Say Hey Kairos whenever you need me.", () => sleepKairos()); return true;
+    default: return false;
+  }
+}
+
+// Section.
+function isVisionRequest(text) {
+  const lower = text.toLowerCase();
+  const visualVerbs = ['see', 'look', 'watch', 'view', 'observe', 'notice', 'spot', 'identify', 'recognise', 'recognize', 'analyse', 'analyze', 'describe', 'examine', 'inspect', 'check'];
+  const visualContext = ['camera', 'screen', 'image', 'photo', 'picture', 'frame', 'front of me', 'in front', 'this', 'here', 'my work', 'my project', 'my code', 'my circuit', 'my robot', 'what i', 'what am i', 'what is this', 'what are these'];
+  const directPhrases = ['what do you see', 'what can you see', 'look at this', 'look at my', 'what is this', 'what are these', 'describe this', 'describe what', 'can you see', 'tell me what you see', 'what do you notice', 'analyse this', 'analyze this', 'examine this', 'inspect this', 'what am i holding', 'what am i working on', 'what is in front', 'show me what', 'look through my camera', 'use your camera', 'what does this look like', 'identify this', 'identify what'];
+  const hasVerb = visualVerbs.some(v => lower.includes(v));
+  const hasContext = visualContext.some(c => lower.includes(c));
+  return directPhrases.some(p => lower.includes(p)) || (hasVerb && hasContext);
+}
+
+function isScreenRequest(text) {
+  const lower = text.toLowerCase();
+  return ['my screen', 'look at my screen', 'what\'s on my screen', 'check my screen', 'analyse my screen', 'analyze my screen', 'what do you see on screen', 'my assignment', 'my website', 'my code on screen', 'fix my code', 'review my code', 'help with my design', 'look at my design', 'check my design'].some(p => lower.includes(p));
+}
+
+// Section.
+let wakeRec = null;
+let mainRec = null;
+let isAwake = false;
+let isProcessing = false;
+let interactionGeneration = 0;
+let sleepTimer = null;
+let wakeDebounce = false;
+let mainRecActive = false;
+let restartPending = false;
+
+// M3/M4: restored from localStorage so mute survives a reload. This flag is checked INSIDE buildWakeRe...
+let isMicMuted = (function () {
+  try { return localStorage.getItem('kairos_mic_muted') === '1'; }
+  catch (e) { return false; }
+})();
+
+const ACTIVE_TIMEOUT_MS = 60000;
+
+// Section.
+const FALLBACK_WAKE_WORDS = [
+  'kairos', 'hey kairos', 'wake up kairos',
+  'rise kairos', 'kairos awaken', 'engage kairos',
+  'kairos online', 'activate kairos',
+];
+
+function getWakeWords() {
+  const fromConfig = (window.KAIROS_WAKE && window.KAIROS_WAKE.words) || null;
+  if (Array.isArray(fromConfig) && fromConfig.length) return fromConfig;
+  return FALLBACK_WAKE_WORDS;
+}
+
+function isWakeWord(transcript) {
+  const lower = transcript.toLowerCase().trim();
+  return getWakeWords().some(w => lower.includes(String(w).toLowerCase()));
+}
+
+// Section.
+function isMuted() { return isMicMuted; }
+
+function applyMuteVisuals() {
+  const btn = document.getElementById('mic-mute-btn');
+  if (btn) {
+    // The icons are inline SVG children, so only the class is toggled — setting textContent here would destroy them.
+    btn.classList.toggle('muted', isMicMuted);
+    btn.setAttribute('aria-pressed', isMicMuted ? 'true' : 'false');
+    const label = isMicMuted ? 'Unmute microphone' : 'Mute microphone';
+    btn.setAttribute('title', label);
+    btn.setAttribute('aria-label', label);
+  }
+  // M6: unmistakable state, not just an icon swap.
+  const orbEl = document.getElementById('orb');
+  if (orbEl) orbEl.classList.toggle('mic-muted', isMicMuted);
+
+  if (statusEl) {
+    if (isMicMuted) {
+      statusEl.textContent =
+        (window.KAIROS_UI && window.KAIROS_UI.status_mic_muted) ||
+        '▶ MIC MUTED — TAP TO RESUME';
+    } else if (!isAwake) {
+      statusEl.textContent =
+        (window.KAIROS_UI && window.KAIROS_UI.status_standby) ||
+        '▶ STANDBY — SAY "HEY KAIROS"';
+    }
+  }
+}
+
+function muteMic(options) {
+  const silent = options && options.silent;
+  isMicMuted = true;
+  try { localStorage.setItem('kairos_mic_muted', '1'); } catch (e) { }
+
+  // Stop everything that holds the microphone.
+  isAwake = false;
+  clearTimeout(sleepTimer);
+  stopKairos();
+
+  if (wakeRec) {
+    try { wakeRec.onend = null; wakeRec.onerror = null; wakeRec.onresult = null; wakeRec.abort(); }
+    catch (e) { }
+    wakeRec = null;
+  }
+  if (mainRec) {
+    try { mainRec.onend = null; mainRec.onerror = null; mainRec.onresult = null; mainRec.abort(); }
+    catch (e) { }
+    mainRec = null;
+  }
+  mainRecActive = false;
+  restartPending = false;
+
+  setOrb('standby');
+  applyMuteVisuals();
+
+  if (!silent && typeof showNotification === 'function') {
+    showNotification(
+      (window.KAIROS_UI && window.KAIROS_UI.mic_muted_notice) ||
+      'Microphone muted. I won\'t listen until you unmute.'
+    );
+  }
+}
+
+function unmuteMic(options) {
+  const silent = options && options.silent;
+  isMicMuted = false;
+  try { localStorage.removeItem('kairos_mic_muted'); } catch (e) { }
+
+  applyMuteVisuals();
+
+  // M5: restart listening WITHOUT the "Yes, how can I help?" greeting.
+  buildWakeRec();
+
+  if (!silent && typeof showNotification === 'function') {
+    showNotification(
+      (window.KAIROS_UI && window.KAIROS_UI.mic_unmuted_notice) ||
+      'Microphone active.'
+    );
+  }
+}
+
+function toggleMicMute() {
+  if (isMicMuted) unmuteMic();
+  else muteMic();
+  return isMicMuted;
+}
+
+function openKairosSettings() {
+  if (document.getElementById('kairos-settings-overlay')) return;
+
+  const wasMuted = isMicMuted;
+  if (!wasMuted) muteMic({ silent: true });
+
+  const overlay = document.createElement('div');
+  overlay.id = 'kairos-settings-overlay';
+  overlay.style.cssText = [
+    'position:fixed', 'inset:0', 'z-index:20000', 'background:var(--bg-base-start)',
+    'display:flex', 'flex-direction:column'
+  ].join(';');
+
+  const frame = document.createElement('iframe');
+  frame.src = '/settings?embedded=1';
+  frame.title = 'KAIROS settings';
+  frame.style.cssText = 'width:100%;height:100%;border:0;background:var(--bg-base-start)';
+  overlay.appendChild(frame);
+  document.body.appendChild(overlay);
+
+  const close = () => {
+    overlay.remove();
+    window.removeEventListener('message', onMessage);
+    if (!wasMuted) unmuteMic({ silent: true });
+  };
+  const onMessage = (event) => {
+    if (event.origin === window.location.origin && event.data === 'kairos:close-settings') close();
+  };
+  window.addEventListener('message', onMessage);
+}
+
+window.openKairosSettings = openKairosSettings;
+
+window.kairosMic = {
+  mute: muteMic,
+  unmute: unmuteMic,
+  toggle: toggleMicMute,
+  isMuted: isMuted,
+};
+
+// Section.
+
+// Section.
+function startWakeWordListener() {
+  if (!('webkitSpeechRecognition' in window || 'SpeechRecognition' in window)) {
+    statusEl.textContent = '▶ VOICE NOT SUPPORTED — USE CHROME'; return;
+  }
+  buildWakeRec();
+}
+
+function buildWakeRec() {
+  if (isAwake) return;
+  if (isMicMuted) return;   // M3 — the guard that makes mute stick
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  try { if (wakeRec) { wakeRec.onend = null; wakeRec.onerror = null; wakeRec.onresult = null; wakeRec.abort(); } } catch (e) { }
+
+  wakeRec = new SR();
+  wakeRec.continuous = true; wakeRec.interimResults = true;
+  wakeRec.lang = kairosSpeechLang();
+
+  wakeRec.onresult = (e) => {
+    if (isAwake || isMicMuted) return;
+    for (let i = e.resultIndex; i < e.results.length; i++) {
+      const t = e.results[i][0].transcript;
+      if (isWakeWord(t) && !wakeDebounce && !isProcessing) {
+        wakeDebounce = true;
+        setTimeout(() => { wakeDebounce = false; }, 2500);
+        activateKairos(); return;
+      }
+    }
+  };
+
+  // These auto-restart handlers are exactly why isMicMuted has to be checked in buildWakeRec — otherwise...
+  wakeRec.onend = () => { if (!isAwake && !isMicMuted) setTimeout(buildWakeRec, 400); };
+  wakeRec.onerror = (e) => {
+    if (e.error !== 'no-speech' && e.error !== 'aborted') console.warn('Wake:', e.error);
+    if (!isAwake && !isMicMuted) setTimeout(buildWakeRec, 800);
+  };
+  try { wakeRec.start(); } catch (e) { if (!isMicMuted) setTimeout(buildWakeRec, 800); }
+}
+
+// Section.
+function activateKairos() {
+  if (isMicMuted) {
+    // Clicking the orb while muted should unmute rather than appear broken.
+    unmuteMic();
+    return;
+  }
+  isAwake = true;
+  clearTimeout(sleepTimer);
+  try { wakeRec.onend = null; wakeRec.abort(); } catch (e) { }
+
+  setOrb('listening');                                    // ← ORB: listening
+  statusEl.textContent = '▶ LISTENING...';
+  greetingEl.textContent = '';
+  // Open the listener immediately after the wake word. Speaking an activation acknowledgement here adds...
+  startMainListener();
+}
+
+// Section.
+function startMainListener() {
+  if (!isAwake || isProcessing) return;
+  if (isMicMuted) return;   // M3
+  if (mainRecActive || restartPending) return;
+  restartPending = true;
+
+  setTimeout(() => {
+    restartPending = false;
+    if (!isAwake || isProcessing || isMicMuted) return;
+
+    if (mainRec) {
+      try { mainRec.onend = null; mainRec.onerror = null; mainRec.onresult = null; mainRec.abort(); } catch (e) { }
+      mainRec = null;
+    }
+
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    mainRec = new SR();
+    mainRec.lang = kairosSpeechLang();
+    mainRec.continuous = true; mainRec.interimResults = true; mainRec.maxAlternatives = 3;
+
+    let silenceTimer = null, finalText = '', interimText = '';
+    const SILENCE_MS = 850;
+
+    mainRec.onstart = () => {
+      mainRecActive = true;
+      setOrb('listening');                                // ← ORB: listening
+      statusEl.textContent = screenStream ? '▶ LISTENING — SCREEN ON' : cameraStream ? '▶ LISTENING — CAMERA ON' : '▶ LISTENING...';
+    };
+
+    mainRec.onresult = (e) => {
+      interimText = '';
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        const t = e.results[i][0].transcript;
+        if (e.results[i].isFinal) { finalText += t + ' '; interimText = ''; }
+        else { interimText = t; }
+      }
+      const display = (finalText + interimText).trim();
+
+      if (Date.now() < speechEchoGuardUntil) return;
+
+      // ignore Kairos hearing its own voice
+      const normalized = display.toLowerCase();
+      if (normalized.length > 1 && normalized.length < 80 &&
+          (lastSpokenReply.includes(normalized) || normalizedSimilarity(normalized, lastSpokenReply) >= 0.72)) {
+        return;
+      }
+
+      if (display) greetingEl.textContent = `"${display}"`;
+      if (isSpeaking && display.length > 1) { stopKairos(); statusEl.textContent = '▶ LISTENING...'; }
+      if (silenceTimer) clearTimeout(silenceTimer);
+      if (!isProcessing) {
+        silenceTimer = setTimeout(() => {
+          const command = (finalText + interimText).trim();
+          if (command.length > 1) { finalText = ''; interimText = ''; processCommand(command); }
+        }, SILENCE_MS);
+      }
+    };
+
+    mainRec.onend = () => {
+      mainRecActive = false;
+      // Only remove listening state if we're not about to restart
+      if (!isAwake || isProcessing) setOrb(isAwake ? 'thinking' : 'standby');
+      if (isAwake && !isProcessing && !restartPending) startMainListener();
+    };
+
+    mainRec.onerror = (e) => {
+      mainRecActive = false;
+      if (e.error === 'aborted') return;
+      if (e.error === 'no-speech') { if (isAwake && !isProcessing) startMainListener(); return; }
+      console.warn('mainRec error:', e.error);
+      if (isAwake && !isProcessing) setTimeout(() => startMainListener(), 500);
+    };
+
+    try { mainRec.start(); }
+    catch (e) { mainRecActive = false; setTimeout(() => { if (isAwake && !isProcessing) startMainListener(); }, 500); }
+  }, 150);
+}
+
+// Section.
+async function processCommand(rawInput) {
+  if (isProcessing) return;
+  const generation = ++interactionGeneration;
+
+  const userSaid = sanitizeInput(rawInput);
+  if (!userSaid) return;
+
+  // Section.
+  if (window.kairosReminders) {
+    const remReply = await window.kairosReminders.handleVoice(userSaid);
+    if (remReply) {
+      addToHistory('user', userSaid);
+      isProcessing = true;
+      if (mainRec) {
+        try { mainRec.onend = null; mainRec.onerror = null; mainRec.onresult = null; mainRec.abort(); } catch (e) { }
+        mainRec = null;
+      }
+      mainRecActive = false;
+      setOrb('speaking');                                 // ← ORB: speaking
+      statusEl.textContent = '▶ REMINDER SET';
+      resumeAfterReply(remReply);
+      return;
+    }
+  }
+
+  // Section.
+  if (window.kairosMemory) {
+    const memReply = await window.kairosMemory.handleVoice(userSaid);
+    if (memReply) {
+      addToHistory('user', userSaid);
+      isProcessing = true;
+      if (mainRec) {
+        try { mainRec.onend = null; mainRec.onerror = null; mainRec.onresult = null; mainRec.abort(); } catch (e) { }
+        mainRec = null;
+      }
+      mainRecActive = false;
+      setOrb('speaking');                                 // ← ORB: speaking
+      statusEl.textContent = '▶ MEMORY UPDATED';
+      resumeAfterReply(memReply);
+      return;
+    }
+  }
+
+  // Section.
+  const voiceCmd = checkVoiceCommand(userSaid);
+  if (voiceCmd) {
+    if (voiceCmd === 'FILE_HANDLED') {
+      // Already spoken inside checkVoiceCommand — just log + resume listening.
+      addToHistory('user', userSaid);
+      sleepTimer = setTimeout(() => { if (!isProcessing) sleepKairos(); }, ACTIVE_TIMEOUT_MS);
+      setTimeout(() => { if (isAwake && !isProcessing) startMainListener(); }, 1500);
+      return;
+    }
+    const handled = await handleVoiceCommand(voiceCmd);
+    if (handled) {
+      addToHistory('user', userSaid);
+      sleepTimer = setTimeout(() => { if (!isProcessing) sleepKairos(); }, ACTIVE_TIMEOUT_MS);
+      setTimeout(() => { if (isAwake && !isProcessing) startMainListener(); }, 1500);
+      return;
+    }
+  }
+
+  isProcessing = true;
+  clearTimeout(sleepTimer);
+
+  if (mainRec) {
+    try { mainRec.onend = null; mainRec.onerror = null; mainRec.onresult = null; mainRec.abort(); } catch (e) { }
+    mainRec = null;
+  }
+  mainRecActive = false;
+
+  addToHistory('user', userSaid);
+  greetingEl.textContent = `"${userSaid}"`;
+  setOrb('thinking');                                     // ← ORB: thinking (fetching answer)
+  statusEl.textContent = '▶ THINKING...';
+
+  let reply;
+  try {
+    if (checkDevQuestion(userSaid)) {
+      reply = DEV_RESPONSE;
+    } else if (window.isWeatherRequest && window.isWeatherRequest(userSaid)) {
+      statusEl.textContent = '▶ FETCHING WEATHER...';
+      reply = await window.getWeatherReply(userSaid);
+    } else if (isScreenRequest(userSaid) || (screenStream && isVisionRequest(userSaid))) {
+      setOrb('thinking');
+      statusEl.textContent = '▶ ANALYSING SCREEN...';
+      if (!screenStream) {
+        const opened = await startScreenShare();
+        if (!opened) { reply = "Screen sharing was denied or cancelled."; isProcessing = false; resumeAfterReply(reply); return; }
+        await new Promise(r => setTimeout(r, 500));
+      }
+      const imgB64 = captureScreenFrame();
+      reply = imgB64 ? await window.askKairosScreen(imgB64, userSaid) : "I couldn't capture your screen.";
+    } else if (isVisionRequest(userSaid)) {
+      setOrb('thinking');
+      statusEl.textContent = '▶ ANALYSING CAMERA...';
+      if (!cameraStream) {
+        const opened = await openCamera(selectedCamId);
+        if (!opened) { reply = "I couldn't access the camera."; isProcessing = false; resumeAfterReply(reply); return; }
+        await new Promise(r => setTimeout(r, 800));
+      }
+      const imgB64 = captureFrame();
+      reply = imgB64 ? await window.askKairosVision(imgB64, userSaid) : "I couldn't capture a frame from the camera.";
+    } else {
+      if (typeof window.askKairosStream === 'function') {
+        let streamStarted = false;
+        reply = await window.askKairosStream(userSaid, (_delta, full) => {
+          if (!streamStarted) {
+            streamStarted = true;
+            statusEl.textContent = '▶ RESPONDING...';
+            setOrb('speaking');
+          }
+          greetingEl.textContent = full;
+        });
+      } else {
+        reply = await window.askKairos(userSaid);
+      }
+    }
+  } catch (err) {
+    console.error('processCommand error:', err);
+    setOrb('error');                                      // ← ORB: error
+    reply = "I ran into an issue. Please try again.";
+  }
+
+  if (generation !== interactionGeneration) return;
+  resumeAfterReply(reply);
+}
+
+function resumeAfterReply(reply) {
+  const generation = interactionGeneration;
+  lastSpokenReply = reply.toLowerCase();
+  if (hasCodeBlock(reply)) {
+    const blocks = extractCodeBlocks(reply);
+    if (blocks.length > 0) showCodePanel(blocks);
+  }
+  setOrb('speaking');                                     // ← ORB: speaking (responding)
+  speakAndType(greetingEl, reply, () => {
+    if (generation !== interactionGeneration) return;
+    addToHistory('kairos', reply);
+    isProcessing = false;
+    statusEl.textContent = '▶ ACTIVE — SPEAK ANYTIME';
+    setOrb('listening');                                  // ← ORB: back to listening
+    sleepTimer = setTimeout(() => { if (!isProcessing) sleepKairos(); }, ACTIVE_TIMEOUT_MS);
+    setTimeout(() => { if (isAwake && !isProcessing) startMainListener(); }, 500);
+  });
+}
+
+// Section.
+function sleepKairos() {
+  isAwake = false; isProcessing = false; mainRecActive = false;
+  clearTimeout(sleepTimer); stopKairos();
+  setOrb('standby');                                      // ← ORB: standby
+  statusEl.textContent = isMicMuted
+    ? ((window.KAIROS_UI && window.KAIROS_UI.status_mic_muted) || '▶ MIC MUTED — TAP TO RESUME')
+    : ((window.KAIROS_UI && window.KAIROS_UI.status_standby) || '▶ STANDBY — SAY "HEY KAIROS"');
+  if (mainRec) {
+    try { mainRec.onend = null; mainRec.onerror = null; mainRec.onresult = null; mainRec.abort(); } catch (e) { }
+    mainRec = null;
+  }
+  if (!isMicMuted) setTimeout(buildWakeRec, 500);
+}
+
+orb.addEventListener('click', () => {
+  if (isMicMuted) { unmuteMic(); return; }
+  if (isSpeaking || isProcessing) { window.kairosVoice.interrupt(); return; }
+  if (isAwake && !isProcessing) { startMainListener(); }
+  else if (!isAwake && !isProcessing) { activateKairos(); }
+});
+
+// Section.
+let screenStream = null;
+let screenVideo = null;
+
+async function startScreenShare() {
+  try {
+    screenStream = await navigator.mediaDevices.getDisplayMedia({
+      video: { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: 1 }, audio: false
+    });
+    screenVideo = document.createElement('video');
+    screenVideo.muted = true; screenVideo.playsInline = true; screenVideo.autoplay = true;
+    screenVideo.srcObject = screenStream;
+    await new Promise(r => { screenVideo.onloadedmetadata = r; });
+    await screenVideo.play();
+    showScreenPreview();
+    screenStream.getVideoTracks()[0].addEventListener('ended', stopScreenShare);
+    const btn = document.getElementById('screen-btn');
+    if (btn) btn.classList.add('active');
+    statusEl.textContent = '▶ SCREEN SHARED — SPEAK TO ANALYSE';
+    return true;
+  } catch (err) { console.warn('Screen share error:', err.name); return false; }
+}
+
+// Section.
+const ICON_MIC_ON = `
+  <svg class="mic-icon mic-on" viewBox="0 0 24 24" fill="none" aria-hidden="true"
+       stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M12 2a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/>
+    <path d="M19 10v1a7 7 0 0 1-14 0v-1"/>
+    <line x1="12" y1="18" x2="12" y2="22"/><line x1="8" y1="22" x2="16" y2="22"/>
+  </svg>`;
+
+const ICON_MIC_OFF = `
+  <svg class="mic-icon mic-off" viewBox="0 0 24 24" fill="none" aria-hidden="true"
+       stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M9 9V5a3 3 0 0 1 5.94-.6"/><path d="M15 11.6V11"/>
+    <path d="M19 10v1a7 7 0 0 1-10.7 5.98"/><path d="M5 10v1a7 7 0 0 0 2.05 4.95"/>
+    <line x1="12" y1="18" x2="12" y2="22"/><line x1="8" y1="22" x2="16" y2="22"/>
+    <line x1="3" y1="3" x2="21" y2="21"/>
+  </svg>`;
+
+const ICON_CAPTURE = `
+  <svg class="kx-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"
+       stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+    <circle cx="12" cy="13" r="4"/>
+  </svg>`;
+
+const ICON_FULLSCREEN = `
+  <svg class="kx-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"
+       stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M16 21h3a2 2 0 0 0 2-2v-3M8 21H5a2 2 0 0 1-2-2v-3"/>
+  </svg>`;
+
+const ICON_CLOSE = `
+  <svg class="kx-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"
+       stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+  </svg>`;
+
+// Keeps an overlay mic button's icon in sync with the real mute state.
+function paintMicButton(btn, muted) {
+  if (!btn) return;
+  btn.classList.toggle('muted', muted);
+  btn.innerHTML = muted ? ICON_MIC_OFF : ICON_MIC_ON;
+  const label = muted ? 'Unmute microphone' : 'Mute microphone';
+  btn.setAttribute('title', label);
+  btn.setAttribute('aria-label', label);
+  btn.setAttribute('aria-pressed', muted ? 'true' : 'false');
+}
+
+let screenTimerInterval = null;
+let screenTimerStart = null;
+
+function showScreenPreview() {
+  let preview = document.getElementById('screen-preview');
+  if (!preview) {
+    preview = document.createElement('div');
+    preview.id = 'screen-preview';
+    document.body.appendChild(preview);
+  }
+  preview.innerHTML = `
+    <div class="kx-media-topbar" style="top:24px;">
+      <div class="kx-live-pill recording">
+        <span class="kx-live-dot"></span>
+        <span>SCREEN SHARING ACTIVE</span>
+        <span id="screen-timer">00:00</span>
+      </div>
+      <div class="kx-media-controls">
+        <button class="kx-icon-btn" id="screen-mute-btn" aria-pressed="false"></button>
+        <button class="kx-icon-btn" id="screen-capture-btn" title="Capture frame"
+                aria-label="Capture frame">${ICON_CAPTURE}</button>
+        <button class="kx-stop-share-btn" id="screen-stop-btn">Stop Share</button>
+      </div>
+    </div>
+    <div class="kx-screen-frame">
+      <video id="screen-thumb" autoplay muted playsinline></video>
+    </div>
+  `;
+  preview.style.display = 'flex';
+
+  paintMicButton(document.getElementById('screen-mute-btn'), isMicMuted);
+
+  document.getElementById('screen-stop-btn').addEventListener('click', stopScreenShare);
+  document.getElementById('screen-capture-btn').addEventListener('click', () => {
+    const dataUrl = captureScreenFrame();
+    if (!dataUrl) return;
+    const a = document.createElement('a');
+    a.href = dataUrl;
+    a.download = `kairos-screen-${Date.now()}.jpg`;
+    a.click();
+  });
+  document.getElementById('screen-mute-btn').addEventListener('click', () => {
+    // M7: was kairosCore.sleep()/wake() — sleep() ended the whole session and wake() spoke "Yes, how can I...
+    const muted = window.kairosMic ? window.kairosMic.toggle() : false;
+    paintMicButton(document.getElementById('screen-mute-btn'), muted);
+  });
+
+  setTimeout(() => {
+    const thumb = document.getElementById('screen-thumb');
+    if (thumb && screenStream) thumb.srcObject = screenStream;
+  }, 100);
+
+  screenTimerStart = Date.now();
+  clearInterval(screenTimerInterval);
+  screenTimerInterval = setInterval(() => {
+    const el = document.getElementById('screen-timer');
+    if (el) el.textContent = formatElapsed(screenTimerStart);
+  }, 1000);
+}
+
+function stopScreenShare() {
+  if (screenStream) { screenStream.getTracks().forEach(t => t.stop()); screenStream = null; }
+  screenVideo = null;
+  const preview = document.getElementById('screen-preview');
+  if (preview) { preview.style.display = 'none'; preview.innerHTML = ''; }
+  const btn = document.getElementById('screen-btn');
+  if (btn) btn.classList.remove('active');
+  clearInterval(screenTimerInterval);
+  screenTimerInterval = null;
+  statusEl.textContent = isAwake ? '▶ ACTIVE — SPEAK ANYTIME' : '▶ STANDBY — SAY "HEY KAIROS"';
+}
+
+function captureScreenFrame() {
+  if (!screenVideo || !screenStream) return null;
+  const canvas = document.createElement('canvas');
+  const maxW = 800, maxH = 450;
+  const ratio = Math.min(maxW / screenVideo.videoWidth, maxH / screenVideo.videoHeight);
+  canvas.width = Math.round(screenVideo.videoWidth * ratio);
+  canvas.height = Math.round(screenVideo.videoHeight * ratio);
+  canvas.getContext('2d').drawImage(screenVideo, 0, 0, canvas.width, canvas.height);
+  return canvas.toDataURL('image/jpeg', 0.6);
+}
+
+function toggleScreenShare() {
+  const access = checkProFeature('screen');
+  const continueToggle = allowed => {
+    if (!allowed) return;
+    if (screenStream) stopScreenShare();
+    else startScreenShare();
+  };
+  if (access && typeof access.then === 'function') access.then(continueToggle);
+  else continueToggle(access);
+}
+
+// NOTE: screen-btn is wired once, centrally, in index.htm's load listener (calls toggleScreenShare())....
+
+// Section.
+let cameraStream = null;
+let selectedCamId = null;
+let selectedMicId = null;
+
+async function openCamera(deviceId) {
+  const camFeed = document.getElementById('cam-feed');
+  if (!camFeed) return false;
+  if (cameraStream) { cameraStream.getTracks().forEach(t => t.stop()); cameraStream = null; }
+  try {
+    const constraints = {
+      video: deviceId
+        ? { deviceId: { exact: deviceId }, width: { ideal: 640 }, height: { ideal: 480 } }
+        : { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: 'user' },
+      audio: false
+    };
+    cameraStream = await navigator.mediaDevices.getUserMedia(constraints);
+    camFeed.muted = true; camFeed.playsInline = true; camFeed.autoplay = true;
+    camFeed.srcObject = cameraStream;
+    camFeed.style.filter = 'none';
+    await new Promise(resolve => { camFeed.onloadedmetadata = resolve; });
+    await camFeed.play();
+    showCameraOverlay();
+    return true;
+  } catch (err) { console.error('openCamera error:', err.name); return false; }
+}
+
+let camTimerInterval = null;
+let camTimerStart = null;
+let camMuted = false;
+
+function formatElapsed(startTime) {
+  const secs = Math.floor((Date.now() - startTime) / 1000);
+  const m = String(Math.floor(secs / 60)).padStart(2, '0');
+  const s = String(secs % 60).padStart(2, '0');
+  return `${m}:${s}`;
+}
+
+function showCameraOverlay() {
+  const camFeed = document.getElementById('cam-feed');
+  if (!camFeed) return;
+
+  let bar = document.getElementById('cam-overlay');
+  if (bar) bar.remove();
+  bar = document.createElement('div');
+  bar.id = 'cam-overlay';
+  bar.className = 'kx-media-topbar';
+  bar.innerHTML = `
+    <div class="kx-live-pill recording">
+      <span class="kx-live-dot"></span>
+      <span>LIVE</span>
+      <span id="cam-timer">00:00</span>
+    </div>
+    <div class="kx-media-controls">
+      <button class="kx-icon-btn" id="cam-mute-btn" aria-pressed="false"></button>
+      <button class="kx-icon-btn" id="cam-capture-btn" title="Capture frame"
+              aria-label="Capture frame">${ICON_CAPTURE}</button>
+      <button class="kx-icon-btn" id="cam-fullscreen-btn" title="Fullscreen"
+              aria-label="Fullscreen">${ICON_FULLSCREEN}</button>
+      <button class="kx-icon-btn danger" id="cam-close-btn" title="Close camera"
+              aria-label="Close camera">${ICON_CLOSE}</button>
+    </div>
+  `;
+  document.body.appendChild(bar);
+
+  paintMicButton(document.getElementById('cam-mute-btn'), isMicMuted);
+
+  document.getElementById('cam-close-btn').addEventListener('click', closeCamera);
+  document.getElementById('cam-fullscreen-btn').addEventListener('click', () => {
+    if (camFeed.requestFullscreen) camFeed.requestFullscreen().catch(() => {});
+  });
+  document.getElementById('cam-capture-btn').addEventListener('click', () => {
+    const dataUrl = captureFrame();
+    if (!dataUrl) return;
+    const a = document.createElement('a');
+    a.href = dataUrl;
+    a.download = `kairos-capture-${Date.now()}.jpg`;
+    a.click();
+  });
+  document.getElementById('cam-mute-btn').addEventListener('click', () => {
+    // M7: real mic mute, not session sleep. See screen-mute-btn above.
+    camMuted = window.kairosMic ? window.kairosMic.toggle() : !camMuted;
+    paintMicButton(document.getElementById('cam-mute-btn'), camMuted);
+  });
+
+  camFeed.style.display = 'block';
+  const camBtn = document.getElementById('cam-btn');
+  if (camBtn) camBtn.classList.add('active');
+
+  camTimerStart = Date.now();
+  clearInterval(camTimerInterval);
+  camTimerInterval = setInterval(() => {
+    const el = document.getElementById('cam-timer');
+    if (el) el.textContent = formatElapsed(camTimerStart);
+  }, 1000);
+}
+
+function closeCamera() {
+  if (cameraStream) { cameraStream.getTracks().forEach(t => t.stop()); cameraStream = null; }
+  const camFeed = document.getElementById('cam-feed');
+  if (camFeed) { camFeed.srcObject = null; camFeed.style.display = 'none'; }
+  const overlay = document.getElementById('cam-overlay');
+  if (overlay) overlay.remove();
+  const camBtn = document.getElementById('cam-btn');
+  if (camBtn) camBtn.classList.remove('active');
+  clearInterval(camTimerInterval);
+  camTimerInterval = null;
+  camMuted = false;
+}
+
+async function legacyCheckProFeature(feature) {
+  const cached = window.KAIROS_PROFILE;
+  if (cached && (Date.now() - (window.KAIROS_PROFILE_AT || 0) < 60000)) {
+    return evaluateFeatureAccess(feature, cached);
+  }
+  try {
+    const token = localStorage.getItem('kairos_token') || '';
+    const r = await fetch('/api/user/me', { headers: { 'Authorization': `Bearer ${token}` } });
+    if (r.status === 401) {
+      showNotification('🔒 Please log in to use K.A.I.R.O.S.');
+      return false;
+    }
+    const user = await r.json();
+    window.KAIROS_IS_PRO = !!user.is_pro;
+    window.KAIROS_PROFILE = user;
+    window.KAIROS_PROFILE_AT = Date.now();
+    return evaluateFeatureAccess(feature, user);
+  } catch { return false; }
+}
+
+function checkProFeature(feature) {
+  const cached = window.KAIROS_PROFILE;
+  if (cached) {
+    if (Date.now() - (window.KAIROS_PROFILE_AT || 0) >= 60000) {
+      refreshPlanStatus();
+    }
+    return evaluateFeatureAccess(feature, cached);
+  }
+
+  // Do not block camera/screen permission prompts on a profile round-trip. The backend remains the sourc...
+  const refresh = refreshPlanStatus();
+  if (feature === 'cam' || feature === 'screen') return true;
+  return refresh.then(user => {
+    if (!user) {
+      showNotification('Please log in to use K.A.I.R.O.S.');
+      return false;
+    }
+    return evaluateFeatureAccess(feature, user);
+  });
+}
+
+function evaluateFeatureAccess(feature, user) {
+    if (user.is_pro) return true;
+    const usage = user.feature_usage_today || {};
+    const limits = user.feature_limits || {};
+    const key = feature === 'cam' ? 'vision' : feature;
+    const limit = limits[key];
+    const used = usage[key] || 0;
+    if (limit == null || used < limit) return true;
+    const msg = {
+      cam: `You have used ${used} of ${limit} free camera analyses today. Upgrade to Pro for more.`,
+      screen: `You have used ${used} of ${limit} free screen analyses today. Upgrade to Pro for more.`,
+      mem: `You have used your ${limit}-memory free allowance. Upgrade to Pro for more.`,
+      file: ' File sharing limit reached for free plan.',
+    }[feature] || 'This free feature allowance is used up. Upgrade to Pro for more.';
+    speak(msg);
+    showNotification(msg);
+    return false;
+}
+window.checkProFeature = checkProFeature;
+window.showNotification = showNotification;
+window.showProNotice = (label) => showNotification(`🔒 ${label} is available for Pro users only. Upgrade to unlock it.`);
+
+function showNotification(text) {
+  const existing = document.getElementById('pro-notification');
+  if (existing) existing.remove();
+  const el = document.createElement('div');
+  el.id = 'pro-notification';
+  // Redesign: glass notice from the shared notification family (was a cyan clip-path pill). .kx-notice s...
+  el.className = 'kx-notice';
+  el.textContent = text;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 4000);
+}
+
+function toggleCamera() {
+  const access = checkProFeature('cam');
+  const continueToggle = allowed => {
+    if (!allowed) return;
+    if (cameraStream) {
+      closeCamera();
+      return;
+    }
+    openCamera(selectedCamId || null).then(ok => {
+      if (!ok) speak("Camera could not be accessed. Please check your browser permissions.");
+    });
+  };
+  if (access && typeof access.then === 'function') access.then(continueToggle);
+  else continueToggle(access);
+}
+
+function captureFrame() {
+  const camFeed = document.getElementById('cam-feed');
+  if (!camFeed || !cameraStream) return null;
+  if (!camFeed.videoWidth || camFeed.readyState < 2) return null;
+  const canvas = document.createElement('canvas');
+  canvas.width = 480; canvas.height = 360;
+  canvas.getContext('2d').drawImage(camFeed, 0, 0, canvas.width, canvas.height);
+  return canvas.toDataURL('image/jpeg', 0.45);
+}
+
+// NOTE: cam-btn is wired once, centrally, in index.htm's load listener (calls toggleCamera()). Binding...
+
+// Section.
+let availableDevices = { cameras: [], mics: [], speakers: [] };
+let savedPrefs = {};
+try { savedPrefs = JSON.parse(localStorage.getItem('kairos_devices') || '{}'); } catch (e) { }
+
+async function buildDeviceSelector() {
+  try {
+    // Prime the mic/camera permission with the same voice-oriented audio constraints (task #6) the live ca...
+    const stream = await navigator.mediaDevices.getUserMedia({
+      audio: { echoCancellation: true, noiseSuppression: true },
+      video: true
+    });
+    stream.getTracks().forEach(t => t.stop());
+    await refreshDeviceList();
+    navigator.mediaDevices.addEventListener('devicechange', async () => {
+      await refreshDeviceList();
+      renderDeviceSelector();
+      autoConnectSavedDevices();
+    });
+  } catch (err) {
+    console.warn('Device setup error:', err);
+    try { await refreshDeviceList(); } catch (e) { }
+  }
+}
+
+async function refreshDeviceList() {
+  const devices = await navigator.mediaDevices.enumerateDevices();
+  availableDevices.cameras = devices.filter(d => d.kind === 'videoinput');
+  availableDevices.mics = devices.filter(d => d.kind === 'audioinput');
+  availableDevices.speakers = devices.filter(d => d.kind === 'audiooutput');
+  renderDeviceSelector();
+}
+
+async function autoConnectSavedDevices() {
+  if (savedPrefs.micId) {
+    const mic = availableDevices.mics.find(d => d.deviceId === savedPrefs.micId);
+    if (mic) selectedMicId = savedPrefs.micId;
+  }
+  if (savedPrefs.camId) {
+    const cam = availableDevices.cameras.find(d => d.deviceId === savedPrefs.camId);
+    if (cam) selectedCamId = savedPrefs.camId;
+  }
+}
+
+function saveDevicePrefs() {
+  try { localStorage.setItem('kairos_devices', JSON.stringify(savedPrefs)); } catch (e) { }
+}
+
+function renderDeviceSelector() {
+  let panel = document.getElementById('device-panel');
+  if (!panel) {
+    panel = document.createElement('div');
+    panel.id = 'device-panel';
+    // Redesign: right-edge glass drawer (.kx-drawer--right) + fade/scale motion (.kx-panel--right), replac...
+    panel.className = 'kx-drawer kx-drawer--right kx-panel kx-panel--right';
+    document.body.appendChild(panel);
+  }
+  const makeSelect = (label, iconId, items, savedId, onchange) => `
+    <div class="kx-field">
+      <div class="kx-drawer__eyebrow"><svg class="ic ic--sm" aria-hidden="true"><use href="/icons.svg#${iconId}"/></svg> ${label}</div>
+      <select class="glass-input" onchange="${onchange}">
+        <option value="">Default / Auto</option>
+        ${items.map(d => `<option value="${d.deviceId}" ${d.deviceId === savedId ? 'selected' : ''}>${d.label || d.kind + ' ' + (items.indexOf(d) + 1)}</option>`).join('')}
+      </select>
+    </div>
+  `;
+  panel.innerHTML = `
+    <div class="kx-drawer__head">
+      <span class="kx-drawer__title"><svg class="ic" aria-hidden="true"><use href="/icons.svg#ic-device"/></svg> CONNECTED DEVICES</span>
+      <button class="kx-icon-mini" onclick="toggleDevicePanel()" aria-label="Close device panel"><svg class="ic" aria-hidden="true"><use href="/icons.svg#ic-x"/></svg></button>
+    </div>
+    <div class="kx-drawer__list kx-scroll">
+      <div class="kx-drawer__note">${availableDevices.cameras.length} camera · ${availableDevices.mics.length} mic · ${availableDevices.speakers.length} speaker</div>
+      ${makeSelect('CAMERA', 'ic-camera', availableDevices.cameras, savedPrefs.camId, 'selectCamera(this.value)')}
+      ${makeSelect('MICROPHONE', 'ic-mic', availableDevices.mics, savedPrefs.micId, 'selectMic(this.value)')}
+      ${availableDevices.speakers.length > 0 ? makeSelect('SPEAKER', 'ic-volume', availableDevices.speakers, savedPrefs.speakerId, 'selectSpeaker(this.value)') : ''}
+    </div>
+    <div class="kx-drawer__foot">
+      <div class="kx-drawer__hint">Preferences saved automatically.<br>Connect devices via USB or Bluetooth and they appear here instantly.</div>
+    </div>
+  `;
+}
+
+function toggleDevicePanel() {
+  const panel = document.getElementById('device-panel');
+  if (!panel) return;
+  // open-state now lives on the .open class (was inline style.right === '0px')
+  const isOpen = panel.classList.contains('open');
+  panel.classList.toggle('open', !isOpen);
+  document.body.classList.toggle('kx-panel-open', !isOpen); // dims the orb while open (Brief §5)
+  const btn = document.getElementById('device-btn');
+  if (btn) btn.classList.toggle('active', !isOpen);
+}
+
+function selectCamera(deviceId) {
+  selectedCamId = deviceId || null;
+  savedPrefs.camId = deviceId || null;
+  saveDevicePrefs();
+  if (cameraStream) { closeCamera(); setTimeout(() => openCamera(selectedCamId), 300); }
+}
+
+function selectMic(deviceId) {
+  selectedMicId = deviceId || null;
+  savedPrefs.micId = deviceId || null;
+  saveDevicePrefs();
+  if (isAwake) {
+    if (mainRec) { try { mainRec.abort(); } catch (e) { } mainRec = null; mainRecActive = false; }
+    setTimeout(() => startMainListener(), 300);
+  } else {
+    setTimeout(buildWakeRec, 300);
+  }
+}
+
+function selectSpeaker(deviceId) {
+  savedPrefs.speakerId = deviceId || null;
+  saveDevicePrefs();
+  document.querySelectorAll('audio, video').forEach(el => {
+    if (el.setSinkId) el.setSinkId(deviceId).catch(() => { });
+  });
+}
+
+// NOTE: device-btn is wired once, centrally, in index.htm's load listener (calls toggleDevicePanel())....
+
+// Section.
+function conversationAuthHeaders(extra) {
+  const token = localStorage.getItem('kairos_token') || '';
+  return Object.assign({
+    'Authorization': `Bearer ${token}`,
+    'Content-Type': 'application/json'
+  }, extra || {});
+}
+
+async function ensureConversation() {
+  if (currentConversationId) return currentConversationId;
+  try {
+    const r = await fetch('/api/conversations', { method: 'POST', headers: conversationAuthHeaders() });
+    if (!r.ok) return null;
+    const data = await r.json();
+    currentConversationId = data.id;
+    localStorage.setItem('kairos_conversation_id', currentConversationId);
+    history.replaceState(null, '', `/chat/${currentConversationId}`);
+    return currentConversationId;
+  } catch (e) { return null; }
+}
+
+async function loadCurrentConversation() {
+  if (!localStorage.getItem('kairos_token')) return; // not logged in — nothing to load
+  const convId = localStorage.getItem('kairos_conversation_id');
+  if (!convId) { await ensureConversation(); return; }
+  currentConversationId = convId;
+  try {
+    const r = await fetch(`/api/conversations/${convId}/messages`, { headers: conversationAuthHeaders() });
+    if (r.status === 404) {
+      // conversation was deleted elsewhere — start fresh
+      localStorage.removeItem('kairos_conversation_id');
+      currentConversationId = null;
+      await ensureConversation();
+      return;
+    }
+    if (!r.ok) return;
+    const data = await r.json();
+    window.setKairosHistory && window.setKairosHistory(data.messages || []);
+    historyData.length = 0;
+    (data.messages || []).forEach(m => historyData.push({
+      role: m.role, text: m.content,
+      time: new Date(m.created_at).toTimeString().slice(0, 8)
+    }));
+    renderHistory();
+  } catch (e) { /* offline — keep whatever's in memory */ }
+}
+
+async function addToHistory(role, text, retrying) {
+  historyData.push({ role, text, time: new Date().toTimeString().slice(0, 8) });
+  renderHistory();
+  const convId = await ensureConversation();
+  if (!convId) return;
+  try {
+    const response = await fetch(`/api/conversations/${convId}/messages`, {
+      method: 'POST',
+      headers: conversationAuthHeaders(),
+      body: JSON.stringify({ role, content: text })
+    });
+    if (response.status === 404 && !retrying) {
+      currentConversationId = null;
+      localStorage.removeItem('kairos_conversation_id');
+      await addToHistory(role, text, true);
+    }
+  } catch (e) { /* offline — message stays local for this session only */ }
+}
+
+function renderHistory() {
+  const list = document.getElementById('history-list');
+  if (!list) return;
+  list.innerHTML = '';
+  [...historyData].reverse().forEach(item => {
+    const div = document.createElement('div');
+    div.className = `hist-item hist-${item.role}`;
+    div.innerHTML = `<span class="hist-role">${item.role === 'user' ? '▶ YOU' : '◈ KAIROS'}</span><span class="hist-time">${item.time}</span><p class="hist-text">${escapeHtml(item.text)}</p>`;
+    list.appendChild(div);
+  });
+}
+
+async function startNewConversation() {
+  currentConversationId = null;
+  localStorage.removeItem('kairos_conversation_id');
+  historyData.length = 0;
+  renderHistory();
+  history.replaceState(null, '', '/new');
+  document.getElementById('conversation-list').style.display = 'none';
+  document.getElementById('history-list').style.display = 'block';
+  return;
+  try {
+    const r = await fetch('/api/conversations', { method: 'POST', headers: conversationAuthHeaders() });
+    if (!r.ok) { showNotification('Could not start a new chat — check your connection.'); return; }
+    const data = await r.json();
+    currentConversationId = data.id;
+    localStorage.setItem('kairos_conversation_id', currentConversationId);
+    historyData.length = 0;
+    renderHistory();
+    document.getElementById('conversation-list').style.display = 'none';
+    document.getElementById('history-list').style.display = 'block';
+    showNotification('🆕 New conversation started');
+  } catch (e) { showNotification('Could not start a new chat — check your connection.'); }
+}
+
+async function toggleConversationList() {
+  const listEl = document.getElementById('conversation-list');
+  const histEl = document.getElementById('history-list');
+  const showing = listEl.style.display !== 'none';
+  if (showing) {
+    listEl.style.display = 'none';
+    histEl.style.display = 'block';
+    return;
+  }
+  histEl.style.display = 'none';
+  listEl.style.display = 'block';
+  listEl.innerHTML = '<div class="kx-convlist__msg">Loading…</div>';
+  try {
+    const r = await fetch('/api/conversations', { headers: conversationAuthHeaders() });
+    if (!r.ok) { listEl.innerHTML = '<div class="kx-convlist__msg">Could not load conversations.</div>'; return; }
+    const data = await r.json();
+    listEl.innerHTML = '';
+    if (!data.conversations.length) {
+      listEl.innerHTML = '<div class="kx-convlist__msg">No past conversations yet.</div>';
+      return;
+    }
+    data.conversations.forEach(c => {
+      const row = document.createElement('div');
+      row.className = 'kx-convlist__row';
+      if (String(c.id) === String(currentConversationId)) row.classList.add('is-active');
+      row.innerHTML = `<div class="kx-convlist__title">${escapeHtml(c.title || 'New conversation')}</div>
+                        <div class="kx-convlist__count">${c.message_count} messages</div>`;
+      row.onclick = () => openConversation(c.id);
+      listEl.appendChild(row);
+    });
+  } catch (e) {
+    listEl.innerHTML = '<div class="kx-convlist__msg">Could not load conversations.</div>';
+  }
+}
+
+async function openConversation(convId) {
+  try {
+    const r = await fetch(`/api/conversations/${convId}/messages`, { headers: conversationAuthHeaders() });
+    if (!r.ok) { showNotification('Could not open that conversation.'); return; }
+    const data = await r.json();
+    window.setKairosHistory && window.setKairosHistory(data.messages || []);
+    currentConversationId = convId;
+    localStorage.setItem('kairos_conversation_id', convId);
+    historyData.length = 0;
+    (data.messages || []).forEach(m => historyData.push({
+      role: m.role, text: m.content,
+      time: new Date(m.created_at).toTimeString().slice(0, 8)
+    }));
+    renderHistory();
+    document.getElementById('conversation-list').style.display = 'none';
+    document.getElementById('history-list').style.display = 'block';
+  } catch (e) { showNotification('Could not open that conversation.'); }
+}
+
+// Section.
+const FALLBACK_SHORTCUTS = {
+  history: 'h', camera: 'c', screen: 's', settings: 'g',
+  devices: 'd', reminders: 'r', memory: 'm', files: 'f',
+  text_mode: 't', mute_mic: 'x',
+};
+
+function shortcutKey(action) {
+  const cfg = window.KAIROS_SHORTCUTS || {};
+  return String(cfg[action] || FALLBACK_SHORTCUTS[action] || '').toLowerCase();
+}
+
+document.addEventListener('keydown', (e) => {
+  const tag = e.target.tagName;
+  if (tag === 'INPUT' || tag === 'TEXTAREA' || e.target.isContentEditable) return;
+  if (e.ctrlKey || e.metaKey || e.altKey) return;   // don't hijack browser shortcuts
+
+  const key = (e.key || '').toLowerCase();
+  if (!key) return;
+
+  if (key === shortcutKey('history'))   toggleHistory();
+  if (key === shortcutKey('camera'))    toggleCamera();
+  if (key === shortcutKey('screen'))    toggleScreenShare();
+  if (key === shortcutKey('settings'))  openKairosSettings();
+  if (key === shortcutKey('devices'))   toggleDevicePanel();
+  if (key === shortcutKey('reminders')) window.kairosReminders?.togglePanel();
+  if (key === shortcutKey('memory'))    window.kairosMemory?.togglePanel();
+  if (key === shortcutKey('files'))     window.kairosFiles?.togglePanel();
+  if (key === shortcutKey('mute_mic'))  window.kairosMic?.toggle();
+});
+function toggleHistory() {
+  const panel = document.getElementById('history-panel');
+  if (panel) panel.classList.toggle('open');
+}
+
+// Section.
+function startClock() {
+  function tick() { const el = document.getElementById('clock'); if (el) el.textContent = new Date().toTimeString().slice(0, 8); }
+  tick(); setInterval(tick, 1000);
+}
+// Section.
+window.kairosCore = {
+  sleep: () => { try { sleepKairos(); } catch (e) {} },
+  wake:  () => { try { activateKairos(); } catch (e) {} },
+  isAwake: () => isAwake,
+};

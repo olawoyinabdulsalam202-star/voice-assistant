@@ -1,0 +1,8 @@
+.env
+__pycache__/
+tests/__pycache__/
+*.pyc
+*.log
+kairos_memory.db
+audit-*.png
+.edge-audit*/
